@@ -1,70 +1,70 @@
 # Big-Data
 
 # Cấu trúc dự án
-sales-bigdata-pipeline/
-├── docker/                         # Hạ tầng (Infrastructure-as-Code)
-│   ├── docker-compose.yml          # File điều khiển toàn bộ dịch vụ
-│   ├── postgres/                   # Cấu hình cho DB Source & Warehouse
-│   │   └── init-source.sql         # Script tạo table cho Olist ban đầu
-│   ├── kafka/                      # Cấu hình Kafka & Debezium
-│   │   └── connectors/             # File JSON cấu hình Debezium CDC
-│   └── airflow/                    # Dockerfile tùy chỉnh cho Airflow
-│
-├── data/                           # Lưu trữ cục bộ (Local Storage)
-│   ├── external/                   # Chứa CSV tải từ Kaggle (Olist)
-│   └── minio/                      # Thư mục vật lý ánh xạ vào MinIO (Data Lake)
-│       ├── raw/                    # Dữ liệu Parquet thô từ Kafka
-│       └── gold/                   # Dữ liệu sạch sau khi Spark xử lý
-│
-├── services/                       # Mã nguồn các dịch vụ xử lý
-│   ├── ingestion-java/             # Spring Boot: Kafka -> MinIO (Parquet)
-│   │   ├── src/main/java/...       # Logic chuyển đổi JSON sang Parquet
-│   │   └── pom.xml                 # Dependency: spring-kafka, hadoop-common, parquet
-│   ├── spark-jobs/                 # PySpark: Xử lý dữ liệu lớn
-│   │   ├── transform_sales.py      # Làm sạch và tính toán KPIs
-│   │   └── data_validation.py      # Kiểm tra chất lượng (Great Expectations)
-│   └── warehouse-dbt/              # DBT: Biến đổi dữ liệu trong Postgres
-│       ├── models/                 # SQL models cho doanh thu, sản phẩm
-│       └── dbt_project.yml
-│
-├── orchestration/                  # Điều phối (Orchestration)
-│   └── dags/                       # Các luồng tự động hóa của Airflow
-│       └── main_pipeline_dag.py    # Điều khiển: Spark -> DBT -> Dashboard
-│
-├── monitoring/                     # Giám sát (Monitoring)
-│   └── grafana/                    # Dashboard JSON & Data Sources
-│
-├── scripts/                        # Các script tiện ích
-│   ├── setup_connectors.sh         # Script kích hoạt Debezium qua API
-│   └── load_csv_to_source.py       # Script nạp Olist CSV vào Postgres ban đầu
-├── Makefile                        # Phím tắt điều khiển dự án (make up, make down)
-└── README.md                       # Tài liệu hướng dẫn chi tiết
-
+BIGDATA/
+├── config/                     Lưu thông tin kết nối Cloud
+│   ├── confluent_cloud.conf    # API Key, Secret của Kafka
+│   ├── mongodb_atlas.env       # URI kết nối NoSQL
+│   └── spark_config.py         # Cấu hình Spark Master & Driver
+├── data/                       Mô phỏng HDFS/S3
+│   ├── external/               # Chứa các file CSV Olist gốc
+│   ├── raw/                    # Dữ liệu thô từ Kafka đổ về (Parquet)
+│   ├── silver/                 # Dữ liệu đã sạch & Join (Delta/Parquet)
+│   └── gold/                   # Dữ liệu Aggregated sẵn sàng cho NoSQL
+├── deployment/             
+│   ├── k8s/                    # File .yaml cho Minikube (Kubernetes)
+│   │   ├── debezium-pod.yaml      # Triển khai CDC trên K8s
+│   │   └── grafana-service.yaml   # Monitoring trên K8s
+│   └── local_setup/            # Script cài đặt môi trường Native (Java, Spark)
+├── orchestration/              Điều phối luồng
+│   └── dags/                   # Các script Python cho Airflow (Native)
+├── scripts/                    Các công cụ bổ trợ
+│   ├── ingest_initial.py       # Script nạp dữ liệu ban đầu vào Postgres
+│   └── verify_pipeline.py      # Kiểm tra kết nối end-to-end
+├── services/                   Mã nguồn xử lý
+│   ├── spark-streaming/        # Code PySpark xử lý luồng (Intermediate level)
+│   │   ├── window_aggregates.py   # Xử lý Windowing & Watermarking
+│   │   └── broadcast_joins.py     # Tối ưu hóa hiệu năng Spark
+│   ├── warehouse-nosql/        # Code đẩy dữ liệu vào MongoDB
+│   └── ingestion-native/       # Nếu có code Java/Python CDC riêng
+├── README.md              
+└── requirements.txt        # Các thư viện Python (PySpark, pymongo, confluent-kafka)                       
 # Luồng dữ liệu (Data Pipeline)
 
-Giai đoạn 1: Thu thập (Ingestion)
-PostgreSQL (Source): Nơi lưu trữ dữ liệu bán hàng ban đầu (giả lập database của app bán hàng).
+Giai đoạn 1: Thu thập & Luồng dữ liệu (Streaming Ingestion)
+PostgreSQL (Native Source): Cơ sở dữ liệu nguồn cài trực tiếp trên Windows, lưu trữ giao dịch bán hàng Olist.
 
-Debezium: Công cụ theo dõi thay đổi (CDC) - nếu có đơn hàng mới vào Postgres, thông báo ngay cho Kafka.
+Debezium (Kubernetes - Minikube): Chạy dưới dạng một Pod trên Minikube (để đáp ứng yêu cầu K8s). Nó theo dõi thay đổi (CDC) từ Postgres và đẩy ngay lập tức lên Cloud.
 
-Apache Kafka: Hệ thống hàng đợi tin nhắn, trung chuyển dữ liệu theo thời gian thực.
+Confluent Cloud (Apache Kafka): Hệ thống hàng đợi tin nhắn nằm hoàn toàn trên Cloud. Giúp giảm tải RAM cho máy.
 
-Giai đoạn 2: Lưu trữ thô (Data Lake)
-MinIO: Kho lưu trữ tệp tin (tương đương Amazon S3), dùng để lưu trữ dữ liệu thô dưới dạng file để không làm nặng database.
+Giai đoạn 2: Lưu trữ phân tán (Distributed Storage - Bronze Layer)
+MinIO (Local/K8s): Đóng vai trò là hệ thống lưu trữ đối tượng (tương đương HDFS hoặc Amazon S3). Đây là nơi lưu trữ dữ liệu thô (Raw Data) để phục vụ việc tính toán lại khi cần.
 
-Parquet: Định dạng file nén chuyên dụng cho Big Data, giúp đọc/ghi dữ liệu nhanh hơn nhiều so với CSV truyền thống.
+Parquet Format: Dữ liệu từ Kafka được nạp vào MinIO dưới định dạng cột Parquet, giúp tối ưu hóa dung lượng lưu trữ và tốc độ đọc cho Spark.
 
-Giai đoạn 3: Xử lý dữ liệu (Processing)
-PySpark: Dùng để tính toán doanh thu, lọc dữ liệu rác và gộp các bảng dữ liệu lại với nhau.
+Giai đoạn 3: Xử lý dữ liệu nâng cao (Processing - Silver & Gold Layer)
+PySpark (Native): Cài đặt trực tiếp trên Windows (đã cấu hình Java 17). Tại đây thực hiện:
 
-Java / Spring Boot: Dùng để viết các dịch vụ nhỏ (Microservices) đọc dữ liệu từ Kafka và ghi vào Data Lake .
+Windowing: Tính toán doanh thu theo cửa sổ thời gian (10 phút, 1 giờ).
 
-Giai đoạn 4: Kho dữ liệu & Biến đổi (Warehouse & Transform)
-PostgreSQL (Warehouse): Một database riêng biệt chỉ chứa dữ liệu đã được làm sạch và tính toán xong, sẵn sàng để vẽ biểu đồ.
+Broadcast Join: Tối ưu hóa việc gộp bảng lớn (Orders) với bảng nhỏ (Categories).
 
-DBT (Data Build Tool): Sử dụng SQL để tạo ra các bảng báo cáo cuối cùng (ví dụ: bảng tổng doanh thu theo tháng) từ dữ liệu thô trong kho.
+Watermarking: Xử lý dữ liệu đến trễ từ luồng Kafka.
 
-Giai đoạn 5: Quản lý & Hiển thị
-Apache Airflow: Giúp lập lịch tự động: 8h sáng chạy Spark, 9h sáng cập nhật báo cáo, nếu lỗi thì gửi thông báo.
+Java / Spring Boot: Viết Microservice đọc dữ liệu vàng từ Kafka để ghi vào kho NoSQL.
 
-Grafana: Giao diện Dashboard để vẽ biểu đồ đường, cột, bản đồ nhiệt thể hiện tình hình kinh doanh.
+Giai đoạn 4: Kho dữ liệu NoSQL & Biến đổi (Serving Layer)
+MongoDB Atlas (NoSQL Cloud): Dùng MongoDB trên mây để lưu trữ kết quả đã xử lý. 
+
+dbt (Data Build Tool): Sử dụng để quản lý các câu lệnh biến đổi dữ liệu, đảm bảo dữ liệu trong MongoDB luôn ở trạng thái sẵn sàng nhất cho việc báo cáo.
+
+Giai đoạn 5: Triển khai & Trực quan hóa (Deployment & Monitoring)
+Minikube (Kubernetes): Toàn bộ các dịch vụ bổ trợ (Debezium, Monitoring) được triển khai trên cụm K8s nội bộ.
+
+Grafana: Kết nối trực tiếp vào MongoDB Atlas hoặc Postgres để vẽ Dashboard thời gian thực, theo dõi các chỉ số kinh doanh và hiệu năng hệ thống.
+
+
+# Ae cài python 3.12 và java 17 nhé (python 3.14 và java bản cao hơn có nhiều cái không tương thích với nhau)
+# Ở đây tôi đang dùng dataset của olist. Link đây nhé : https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
+# Ae cài spark bản 3.5.8 nhé( dùng cho ổn định)
