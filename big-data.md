@@ -18,8 +18,7 @@ Bài tập lớn yêu cầu sinh viên xây dựng một hệ thống xử lý d
 
 ### III. Yêu cầu xử lý dữ liệu với Spark
 
-Sinh viên cần thể hiện kỹ năng Spark mức trung cấp qua các phép biến đổi và hành động đa dạng. Nếu dùng framework tương đương thay Spark, cần giải thích kiến trúc và so sánh ưu/nhược điểm với Spark.
-
+Sinh viên cần thể hiện kỹ năng Spark mức trung cấp qua các phép biến đổi và hành động đa dạng. Nếu dùng framework tương đương thay Spark, cần giải thích kiến trúc và so sánh ưu/nhược điểm với Spark. nam depzai
 #### 1. Tổng hợp phức tạp
 - Hàm cửa sổ và hàm tổng hợp nâng cao
 - Thao tác pivot và unpivot
