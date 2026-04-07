@@ -1,6 +1,7 @@
 # Big-Data
 
 # Cấu trúc dự án
+```
 BIGDATA/
 ├── config/                     Lưu thông tin kết nối Cloud
 │   ├── confluent_cloud.conf    # API Key, Secret của Kafka
@@ -28,7 +29,9 @@ BIGDATA/
 │   ├── warehouse-nosql/        # Code đẩy dữ liệu vào MongoDB
 │   └── ingestion-native/       # Nếu có code Java/Python CDC riêng
 ├── README.md              
-└── requirements.txt        # Các thư viện Python (PySpark, pymongo, confluent-kafka)                       
+└── requirements.txt        # Các thư viện Python (PySpark, pymongo, confluent-kafka)           
+```
+            
 # Luồng dữ liệu (Data Pipeline)
 
 Giai đoạn 1: Thu thập & Luồng dữ liệu (Streaming Ingestion)
