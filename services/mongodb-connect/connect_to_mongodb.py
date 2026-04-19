@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 
 # Kết nối
-client = MongoClient("mongodb+srv://<db_username>:<db_password>@bigdata.5kfpsll.mongodb.net/?appName=BigData")
+client = MongoClient("mongodb+srv://admin123:admin111111@bigdata.rsbygb5.mongodb.net/?appName=BigData")
 db = client["testdb"]
 collection = db["users"]
 
