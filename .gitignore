@@ -1,3 +1,4 @@
 .idea
+data/external
 
 init/data/minio/.minio.sys
