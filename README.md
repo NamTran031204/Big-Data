@@ -1,4 +1,3 @@
-$content = @"
 # Big Data - Real-time Streaming Pipeline
 
 ## Tech Stack
