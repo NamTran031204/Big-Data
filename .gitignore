@@ -1,4 +1,8 @@
 .idea
-data/external
+logs/
+data/external/
+data/raw/
+data/processed/
+.env
 
 init/data/minio/.minio.sys

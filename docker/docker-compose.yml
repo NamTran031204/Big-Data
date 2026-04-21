@@ -1,0 +1,72 @@
+version: '3.8'
+
+x-airflow-common:
+  # image: apache/airflow:2.7.1  
+  &airflow-common
+  build: .
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    - AIRFLOW__CORE__FERNET_KEY=''
+    - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+    - AIRFLOW__CORE__LOAD_EXAMPLES=False
+  volumes:
+    - ../dags:/opt/airflow/dags
+    - ../logs:/opt/airflow/logs
+    - ../plugins:/opt/airflow/plugins
+    - ../scripts:/opt/airflow/scripts
+  depends_on:
+    - postgres
+  networks:
+    - backend-network
+
+services:
+  # --- CƠ SỞ DỮ LIỆU CHO AIRFLOW ---
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    networks:
+      - backend-network
+
+  # --- AIRFLOW WEBSERVER (PORT 8080) ---
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # --- AIRFLOW SCHEDULER ---
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+
+  # --- MINIO (DATA LAKE) ---
+  minio:
+    image: quay.io/minio/minio
+    container_name: olist_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_storage:/data
+    networks:
+      - backend-network
+
+networks:
+  backend-network:
+    driver: bridge
+
+volumes:
+  minio_storage:
