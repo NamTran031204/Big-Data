@@ -24,5 +24,3 @@ $content = @"
 - Mô hình **Unbounded Table** trong Structured Streaming.
 - Cơ chế **Event-time processing** và **Watermarking**.
 - Quản lý trạng thái và tính chịu lỗi với **Checkpointing**.
-"@
-Set-Content -Path README.md -Value $content -Encoding utf8
