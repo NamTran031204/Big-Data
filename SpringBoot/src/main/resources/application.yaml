@@ -1,5 +1,5 @@
 spring:
-  # 1. C?u h﷿nh PostgreSQL
+  # 1. Setup PostgreSQL
   datasource:
     url: jdbc:postgresql://localhost:5432/olist_db
     username: admin
@@ -15,12 +15,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  # 2. C?u h﷿nh MongoDB
+  # 2. Setup MongoDB
   data:
     mongodb:
-      uri: mongodb://admin:password123@127.0.0.1:27017/olist_db?authSource=admin
+      uri: mongodb://127.0.0.1:27017/olist_db
 
-  # 3. C?u h﷿nh Kafka
+  # 3. Setup Kafka
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -32,11 +32,11 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
-# 4. C?u h﷿nh Server
+# 4.Setup Server
 server:
   port: 8081
 
-# 5. C?u h﷿nh Logging
+# 5. SetupLogging
 logging:
   level:
     root: INFO
@@ -45,7 +45,6 @@ logging:
 
 eureka:
   client:
-    # T?t vi?c ??ng k﷿ v?i Server v﷿ m﷿nh ch?a c﷿ Eureka Server ch?y
     enabled: false
     register-with-eureka: false
     fetch-registry: false
