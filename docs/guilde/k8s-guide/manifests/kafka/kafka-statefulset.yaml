@@ -33,14 +33,23 @@ spec:
               value: "1"
             - name: KAFKA_ZOOKEEPER_CONNECT
               value: "zookeeper.default.svc.cluster.local:2181"
+            
+            # 1. Định nghĩa các cổng lắng nghe
             - name: KAFKA_LISTENERS
-              value: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:30092,PLAINTEXT_DOCKER://0.0.0.0:9094"
+              value: "INTERNAL://0.0.0.0:9094,EXTERNAL://0.0.0.0:9092"
+            
+            # 2. Quan trọng: Quảng bá địa chỉ để Java và Debezium kết nối được
+            # Cổng 9092 dành cho máy Mac (localhost) qua port-forward
+            # Cổng 9094 dành cho các Service khác TRONG K8S (như Debezium, Spark)
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka.default.svc.cluster.local:9092,PLAINTEXT_HOST://localhost:30092,PLAINTEXT_DOCKER://kafka.default.svc.cluster.local:9094"
+              value: "INTERNAL://kafka.default.svc.cluster.local:9094,EXTERNAL://localhost:9092"
+            
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_DOCKER:PLAINTEXT"
+              value: "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+            
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
-              value: "PLAINTEXT"
+              value: "INTERNAL"
+            
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
