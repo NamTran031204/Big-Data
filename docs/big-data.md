@@ -1,482 +1,41 @@
-# BÁO CÁO PHÂN TÍCH VÀ KẾ HOẠCH TRIỂN KHAI DỰ ÁN BIG DATA
+# KẾ HOẠCH TRIỂN KHAI DỰ ÁN BIG DATA
 
-## PHẦN 0: YÊU CẦU CỦA GIẢNG VIÊN
+## Phân công vai trò cho 5 thành viên
 
-### I. Mục tiêu và yêu cầu chung
-
-Bài tập lớn yêu cầu sinh viên xây dựng một hệ thống xử lý dữ liệu lớn hoàn chỉnh, vận dụng kiến thức đã học để giải quyết bài toán thực tế. Sinh viên phải triển khai một trong hai mô hình kiến trúc: **Kiến trúc Lambda** hoặc **Kiến trúc Kappa**, tập trung xây dựng pipeline dữ liệu end-to-end (thu thập → xử lý → lưu trữ → trực quan hóa).
-
-### II. Yêu cầu kỹ thuật
-
-| Thành phần | Công nghệ |
-|-----------|-----------|
-| Xử lý dữ liệu | Apache Spark (PySpark hoặc Scala) |
-| Lưu trữ phân tán | HDFS hoặc tương đương |
-| Hàng đợi tin nhắn | Apache Kafka, RabbitMQ, v.v. |
-| Cơ sở dữ liệu | NoSQL |
-| Triển khai | Kubernetes hoặc Cloud (không khuyến khích chỉ dùng Docker) |
-
-### III. Yêu cầu xử lý dữ liệu với Spark
-
-Sinh viên cần thể hiện kỹ năng Spark mức trung cấp qua các phép biến đổi và hành động đa dạng. Nếu dùng framework tương đương thay Spark, cần giải thích kiến trúc và so sánh ưu/nhược điểm với Spark. nam depzai
-#### 1. Tổng hợp phức tạp
-- Hàm cửa sổ và hàm tổng hợp nâng cao
-- Thao tác pivot và unpivot
-- Hàm tổng hợp tùy biến
-
-#### 2. Biến đổi nâng cao
-- Nhiều giai đoạn biến đổi
-- Chuỗi thao tác phức tạp
-- UDF tùy biến cho logic nghiệp vụ
-
-#### 3. Thao tác Join
-- Broadcast join (tập dữ liệu không cân bằng)
-- Sort-merge join (dữ liệu quy mô lớn)
-- Tối ưu nhiều join
-
-#### 4. Tối ưu hiệu năng
-- Partition pruning và bucketing
-- Chiến lược cache và persistence
-- Tối ưu truy vấn và kế hoạch thực thi
-
-#### 5. Xử lý luồng (Streaming)
-- Structured Streaming, các chế độ output
-- Watermarking và xử lý dữ liệu đến trễ
-- Quản lý state; đảm bảo exactly-once
-
-#### 6. Phân tích nâng cao
-- Học máy (Spark MLlib)
-- Đồ thị (GraphFrames)
-- Thống kê, chuỗi thời gian
-
-### IV. Các nhóm bài học cần có
-
-Dự án phải thể hiện kiến thức và kỹ năng trong các lĩnh vực sau:
-
-#### 1. Thu thập dữ liệu
-- Nhiều nguồn đa dạng (OLTP database, files, streaming sources)
-- Đảm bảo chất lượng dữ liệu (validation, cleansing)
-- Xử lý dữ liệu đến trễ (late arrival data)
-- Xử lý trùng lặp và phiên bản dữ liệu
-
-#### 2. Xử lý dữ liệu với Spark
-- Tối ưu Spark jobs (execution plan, shuffle optimization)
-- Quản lý bộ nhớ hiệu quả (memory tuning, spill handling)
-- Chiến lược phân vùng dữ liệu (partitioning strategies)
-- Tối ưu theo chi phí (resource allocation, cost-effective processing)
-
-#### 3. Xử lý luồng (Streaming)
-- Đảm bảo exactly-once semantics
-- Window operations (tumbling, sliding, session windows)
-- State management (stateful processing)
-- Fault tolerance và recovery mechanisms
-
-#### 4. Lưu trữ dữ liệu
-- Định dạng lưu trữ tối ưu (Parquet, ORC, Avro)
-- Chiến lược phân vùng (partitioning by date, category)
-- Nén dữ liệu (compression codecs)
-- Quản lý dữ liệu nóng/lạnh (hot/cold data tiers)
-
-#### 5. Tích hợp hệ thống
-- Service discovery mechanisms
-- Xử lý lỗi và retry logic
-- Circuit breaker pattern
-- Load balancing strategies
-
-#### 6. Tối ưu hiệu năng
-- Caching strategies (memory, disk)
-- Query optimization techniques
-- Resource allocation và tuning
-- Phát hiện và giải quyết bottlenecks
-
-#### 7. Giám sát & gỡ lỗi
-- Metrics collection và monitoring
-- Alerting và notification
-- Centralized logging
-- Root cause analysis
-
-#### 8. Mở rộng (Scaling)
-- Horizontal scaling (scale out)
-- Vertical scaling (scale up)
-- Auto-scaling policies
-- Resource planning và cost management
-
-#### 9. Chất lượng dữ liệu & kiểm thử
-- Data quality checks và validation
-- Unit testing
-- Integration testing
-- Performance testing
-
-#### 10. Bảo mật & quản trị
-- Access control và authentication
-- Data encryption (at rest, in transit)
-- Audit logging
-- Compliance requirements
-
-#### 11. Chịu lỗi (Fault Tolerance)
-- Failure recovery mechanisms
-- Data replication strategies
-- Backup và restore procedures
-- Disaster recovery planning
-
----
-
-## PHẦN 1: ĐÁNH GIÁ KẾ HOẠCH KIẾN TRÚC HIỆN TẠI
-
-### 1.1. Tổng quan kế hoạch trong README.md
-
-Kế hoạch hiện tại trong README.md đã đề xuất một kiến trúc Lambda Architecture với các thành phần chính:
-
-**Kiến trúc đề xuất:**
-- ✅ Lambda Architecture (phù hợp với yêu cầu)
-- ✅ Data Lakehouse (Bronze → Silver → Gold layers)
-- ✅ Streaming + Batch processing
-- ✅ PostgreSQL → Debezium CDC → Kafka → Spark
-- ✅ MinIO (HDFS equivalent)
-- ✅ MongoDB Atlas (NoSQL)
-- ✅ Kubernetes (Minikube)
-- ✅ Grafana (Visualization)
-
-**Công nghệ được đề cập:**
-- ✅ Apache Kafka (Confluent Cloud)
-- ✅ Apache Spark (PySpark + Java/Spring Boot)
-- ✅ MongoDB Atlas
-- ✅ MinIO (S3-compatible)
-- ✅ Debezium CDC
-- ✅ Kubernetes (Minikube)
-- ✅ Airflow (orchestration)
-- ✅ Grafana
-- ✅ dbt (data transformation)
-
-### 1.2. Đánh giá kế hoạch theo yêu cầu giảng viên
-
-#### ✅ **Điểm mạnh của kế hoạch:**
-
-| Yêu cầu | Đánh giá | Chi tiết |
-|---------|----------|----------|
-| **Kiến trúc** | ✅ Tốt | Lambda Architecture được thiết kế rõ ràng với Batch + Speed layers |
-| **Lưu trữ phân tán** | ✅ Tốt | MinIO làm HDFS equivalent, phân layer Bronze/Silver/Gold |
-| **Message Queue** | ✅ Tốt | Kafka (Confluent Cloud) với CDC pattern |
-| **NoSQL Database** | ✅ Tốt | MongoDB Atlas |
-| **Kubernetes** | ✅ Tốt | Minikube với Debezium pod |
-| **Định dạng dữ liệu** | ✅ Tốt | Parquet format (columnar, compressed) |
-| **Orchestration** | ✅ Tốt | Airflow DAGs |
-
-#### ⚠️ **Các điểm cần bổ sung/làm rõ:**
-
-**1. Yêu cầu Spark Processing (Quan trọng nhất):**
-- ⚠️ **Thiếu chi tiết**: README chỉ liệt kê "window_aggregates.py" và "broadcast_joins.py" nhưng chưa nói rõ:
-  - Pivot/Unpivot operations
-  - Custom UDFs cho business logic
-  - Bucketing strategies
-  - Cache/Persistence optimization
-  - Execution plan analysis
-- ⚠️ **Thiếu ML & Graph**: Chưa đề cập MLlib, GraphFrames, Time Series
-- ✅ **Đã có**: Windowing, Watermarking, Broadcast Join
-
-**2. Streaming Requirements:**
-- ✅ **Đã có**: Windowing, Watermarking được đề cập
-- ⚠️ **Thiếu**: Exactly-once semantics, Stateful processing (mapGroupsWithState), Checkpoint recovery
-
-**3. Thu thập dữ liệu:**
-- ✅ **Đã có**: PostgreSQL → Debezium CDC (nguồn OLTP)
-- ⚠️ **Thiếu**: 
-  - Nhiều nguồn đa dạng (chỉ có 1 nguồn Postgres)
-  - Data quality validation framework
-  - Duplicate detection mechanism
-  - Late arrival data handling strategy
-
-**4. Tối ưu hiệu năng:**
-- ⚠️ **Thiếu hoàn toàn**:
-  - Memory tuning strategies
-  - Cost optimization
-  - Bottleneck identification
-  - Resource allocation planning
-
-**5. Giám sát & Debug:**
-- ✅ **Đã có**: Grafana monitoring
-- ⚠️ **Thiếu**:
-  - Metrics collection (Prometheus)
-  - Alerting rules
-  - Centralized logging (ELK stack)
-  - Root cause analysis tools
-
-**6. Scaling:**
-- ⚠️ **Thiếu hoàn toàn**:
-  - Horizontal/vertical scaling strategies
-  - Auto-scaling policies
-  - Resource planning
-
-**7. Testing:**
-- ❌ **Không đề cập**: Unit testing, Integration testing, Performance testing
-
-**8. Security:**
-- ❌ **Không đề cập**: Authentication, Authorization, Encryption, Audit logs
-
-**9. Fault Tolerance:**
-- ⚠️ **Thiếu**: Backup strategies, Disaster recovery, Replication policies
-
-**10. Tích hợp hệ thống:**
-- ⚠️ **Thiếu**: Circuit breaker, Retry logic, Service discovery
-
-### 1.3. Đánh giá chi tiết theo từng component
-
-#### 1.3.1. Data Ingestion Layer
-**Kế hoạch hiện tại:** PostgreSQL → Debezium → Kafka → Spark
-- ✅ CDC pattern tốt
-- ⚠️ Thiếu: Data quality checks, Schema validation, Duplicate handling
-- ⚠️ Thiếu: Multiple data sources (hiện chỉ có Postgres)
-
-#### 1.3.2. Storage Layer  
-**Kế hoạch hiện tại:** MinIO với Bronze/Silver/Gold
-- ✅ Lakehouse architecture tốt
-- ✅ Parquet format phù hợp
-- ⚠️ Thiếu: Compression strategy, Partitioning details, Hot/cold data tiers
-
-#### 1.3.3. Processing Layer
-**Kế hoạch hiện tại:** PySpark + Java/Spring Boot
-- ✅ Kết hợp PySpark và Java tốt
-- ⚠️ Thiếu: Cụ thể về các Spark operations nâng cao
-- ⚠️ Thiếu: MLlib, GraphFrames implementations
-- ⚠️ Thiếu: Performance optimization details
-
-#### 1.3.4. Serving Layer
-**Kế hoạch hiện tại:** MongoDB + Grafana + dbt
-- ✅ MongoDB phù hợp cho NoSQL
-- ✅ Grafana cho visualization
-- ⚠️ dbt: Cần làm rõ vai trò (dbt thường dùng cho SQL warehouse, không phổ biến cho MongoDB)
-
-#### 1.3.5. Deployment Layer
-**Kế hoạch hiện tại:** Kubernetes (Minikube)
-- ✅ K8s phù hợp yêu cầu
-- ⚠️ Thiếu: K8s YAML files structure
-- ⚠️ Thiếu: Resource limits, Auto-scaling configs
-
-### 1.4. Kết luận đánh giá kế hoạch
-
-**Tổng thể: Kế hoạch nền tảng TỐT (70%) nhưng thiếu chi tiết triển khai (30%)**
-
-**✅ Điểm mạnh:**
-1. Kiến trúc Lambda rõ ràng, phù hợp yêu cầu
-2. Tech stack hợp lý: Kafka, Spark, MongoDB, K8s
-3. Data Lakehouse với Bronze/Silver/Gold layers
-4. CDC pattern với Debezium
-
-**⚠️ Điểm cần cải thiện:**
-1. **Spark Processing (QUAN TRỌNG NHẤT)**: Cần bổ sung chi tiết 6 yêu cầu Spark
-2. **Testing & Quality**: Thiếu hoàn toàn strategy
-3. **Monitoring & Observability**: Cần bổ sung metrics, logging, alerting
-4. **Performance Optimization**: Cần chiến lược cụ thể
-5. **Security & Governance**: Cần bổ sung
-6. **Multiple Data Sources**: Hiện chỉ có 1 nguồn
-
-**🎯 Khuyến nghị:**
-1. **Ưu tiên cao**: Làm đầy đủ 6 yêu cầu Spark Processing (60% điểm)
-2. **Ưu tiên trung bình**: Bổ sung Testing, Monitoring, Performance tuning
-3. **Ưu tiên thấp**: Security, Governance (nếu có thời gian)
-
-**📊 Scoring:**
-- Kiến trúc & Infrastructure: 8/10
-- Spark Processing (chi tiết): 4/10 ⚠️
-- Advanced Analytics (ML/Graph): 2/10 ⚠️
-- Streaming Processing: 6/10
-- Monitoring & Testing: 3/10 ⚠️
-- **Tổng điểm ước tính**: 23/50 (46%) - CẦN CẢI THIỆN
-
----
-
-## PHẦN 2: XÁC ĐỊNH MỤC TIÊU DỰ ÁN
-
-### 2.1. Bối cảnh nghiệp vụ: HỆ THỐNG PHÂN TÍCH BÁN HÀNG E-COMMERCE THỜI GIAN THỰC
-
-#### 2.1.1. Tại sao cần Big Data cho dữ liệu bán hàng?
-
-**Trong thực tế:**
-
-1. **Khối lượng (Volume):**
-   - Sàn thương mại điện tử như Shopee, Lazada xử lý hàng triệu đơn hàng/ngày
-   - Mỗi đơn hàng có nhiều sản phẩm, nhiều events (view, click, add to cart, checkout)
-   - Dataset Olist có 100K đơn hàng - nhưng trong production có thể là 100M đơn hàng/năm
-
-2. **Tốc độ (Velocity):**
-   - Đơn hàng được tạo liên tục 24/7
-   - Cần phân tích real-time để:
-     - Phát hiện gian lận ngay lập tức
-     - Đưa ra khuyến nghị sản phẩm trong vài milliseconds
-     - Theo dõi inventory để tránh hết hàng
-     - Phát hiện anomaly trong revenue
-
-3. **Đa dạng (Variety):**
-   - Dữ liệu structured: Orders, Products, Customers
-   - Dữ liệu semi-structured: Reviews (text), Logs (JSON)
-   - Dữ liệu streaming: Click events, Payment events
-   - Dữ liệu geolocation
-
-4. **Phân tích phức tạp:**
-   - Customer Lifetime Value (CLV) prediction
-   - Product recommendation (collaborative filtering)
-   - Churn prediction
-   - Fraud detection
-   - Demand forecasting
-   - Market basket analysis
-
-#### 2.1.2. Các Use Cases cụ thể cho dự án
-
-**UC1: Real-time Revenue Dashboard**
-- Tính revenue theo cửa sổ thời gian (mỗi 5 phút, 1 giờ, 1 ngày)
-- Phát hiện spike/drop bất thường
-- Breakdown theo category, seller, region
-
-**UC2: Customer Behavior Analysis**
-- RFM Analysis (Recency, Frequency, Monetary)
-- Customer segmentation
-- Churn prediction
-
-**UC3: Product Performance Analytics**
-- Top selling products theo time window
-- Review sentiment analysis
-- Product recommendation engine (MLlib)
-
-**UC4: Seller Network Analysis**
-- Phân tích mạng lưới sellers (GraphFrames)
-- Identify top sellers, fraudulent sellers
-- Geographic distribution
-
-**UC5: Delivery Performance Monitoring**
-- Tracking delivery time
-- Late delivery prediction
-- Logistics optimization
-
-### 2.2. Dataset Requirements
-
-#### 2.2.1. Dataset Olist - Full Package
-
-Dataset Olist Brazilian E-commerce có **9 tables** với tổng **~300MB**:
-
-1. **olist_orders_dataset.csv** (99,441 rows) ✅ Đã có
-2. **olist_order_items_dataset.csv** (~112K rows) ❌ Cần tải
-3. **olist_order_payments_dataset.csv** (~103K rows) ❌ Cần tải
-4. **olist_order_reviews_dataset.csv** (~99K rows) ❌ Cần tải
-5. **olist_customers_dataset.csv** (~99K rows) ❌ Cần tải
-6. **olist_products_dataset.csv** (~32K rows) ❌ Cần tải
-7. **olist_sellers_dataset.csv** (~3K rows) ❌ Cần tải
-8. **olist_geolocation_dataset.csv** (~1M rows) ❌ Cần tải
-9. **product_category_name_translation.csv** (71 rows) ❌ Cần tải
-
-**Link download:** https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
-
-#### 2.2.2. Quy mô dữ liệu cho bài tập lớn
-
-**Mức tối thiểu (đạt yêu cầu):**
-- Dataset gốc: 300MB (9 tables)
-- Sau khi duplicate/simulate thêm: **2-3 GB**
-- Số records: ~5-10 triệu dòng
-- Thời gian: Mô phỏng data từ 2016-2018 (3 năm)
-
-**Cách tạo data mô phỏng lớn hơn:**
-```python
-# Duplicate data với random variations
-for i in range(10):  # Tạo 10x data
-    df_duplicated = df.withColumn("order_id", 
-        concat(col("order_id"), lit(f"_dup{i}")))
-    df_duplicated = df_duplicated.withColumn("order_purchase_timestamp",
-        date_add(col("order_purchase_timestamp"), randint(0, 365)))
-```
-
-**Lý do cần 2-3GB:**
-- Thể hiện khả năng xử lý phân tán (partitioning)
-- Chứng minh hiệu quả của broadcast join vs sort-merge join
-- Watermarking có ý nghĩa khi data volume lớn
-- MLlib training cần dataset đủ lớn để có model tốt
-
-### 2.3. Kiến trúc hệ thống đề xuất
-
-**Chọn: Lambda Architecture** (phù hợp với yêu cầu học tập)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        DATA SOURCES                              │
-│  PostgreSQL (OLTP) → Debezium CDC → Kafka Topics                 │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                     SPEED LAYER (Real-time)                      │
-│  Spark Structured Streaming → Real-time aggregations            │
-│  (Watermarking, Window Functions, Stateful Processing)          │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                     BATCH LAYER (Historical)                     │
-│  Spark Batch Processing → Complex transformations               │
-│  (Broadcast Joins, MLlib, GraphFrames, Advanced Analytics)      │
-└─────────────────────────────────────────────────────────────────┐
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                    SERVING LAYER (Query)                         │
-│  MongoDB (NoSQL) → Pre-computed views                           │
-│  Grafana → Real-time Dashboards                                 │
-└─────────────────────────────────────────────────────────────────┘
-
-Storage: MinIO (S3-compatible) - Bronze/Silver/Gold layers
-Orchestration: Apache Airflow
-Deployment: Kubernetes (Minikube)
-```
-
----
-
-## PHẦN 3: KẾ HOẠCH TRIỂN KHAI & PHÂN CÔNG CÔNG VIỆC
-
-### 3.1. Timeline tổng thể (10 tuần - 2.5 tháng)
-
-| Giai đoạn | Tuần | Mục tiêu | Deliverables |
-|-----------|------|----------|--------------|
-| **Foundation** | 1 | Setup môi trường & Planning | Infra ready, Dataset ready, Task breakdown |
-| **Infrastructure & Data** | 2 | Infra services + Data ingestion | Kafka, MongoDB, MinIO ready, Data loaded |
-| **Batch Processing Core** | 3 | Joins, Aggregations, UDFs | Bronze → Silver → Gold pipeline |
-| **Batch Optimization** | 4 | Window functions, Pivot, Optimization | Optimized batch processing |
-| **Streaming Foundation** | 5 | Kafka integration, Basic streaming | Kafka → Spark Streaming working |
-| **Streaming Advanced** | 6 | Window, Watermark, Stateful | Advanced streaming features |
-| **Java Integration** | 7 | Java Kafka consumer, MongoDB writer | Java services operational |
-| **Analytics** | 8 | MLlib, GraphFrames, Time Series | ML models + Graph analysis |
-| **Integration & Testing** | 9 | End-to-end testing, Monitoring | Full pipeline + Grafana |
-| **Finalization** | 10 | Documentation, Presentation | Report + Slides + Demo |
-
-### 3.2. Phân công vai trò cho 5 thành viên
-
-#### **👨‍💼 MEMBER 1 - TEAM LEADER (Bạn) [Java + Python]**
+##### **👨‍💼 Nam [Java + Python]**
 **Vai trò:** Project Manager + Infrastructure Engineer + Java Backend Developer
 **Kỹ năng:** Java, Python, Kafka, Kubernetes, System Integration
 
-#### **👨‍💻 MEMBER 2 - JAVA DEVELOPER [Java + Python]**
+##### **👨‍💻 Thế - JAVA DEVELOPER [Java + Python]**
 **Vai trò:** Java Backend Engineer + CDC Specialist
 **Kỹ năng:** Java, Spring Boot, Kafka, PostgreSQL, Debezium
 
-#### **👨‍💻 MEMBER 3 - SPARK BATCH ENGINEER [Python]**
+##### **👨‍💻 Quang - SPARK BATCH ENGINEER [Python]**
 **Vai trò:** PySpark Batch Processing Specialist
 **Kỹ năng:** PySpark, Data Transformation, Performance Optimization
 
-#### **👨‍💻 MEMBER 4 - SPARK STREAMING ENGINEER [Python]**
+##### **👨‍💻 Hoàng - SPARK STREAMING ENGINEER [Python]**
 **Vai trò:** PySpark Streaming Specialist
 **Kỹ năng:** Spark Structured Streaming, Real-time Processing, Watermarking
 
-#### **👨‍💻 MEMBER 5 - DATA SCIENTIST & VISUALIZATION [Python]**
+##### **👨‍💻 Huy - DATA SCIENTIST & VISUALIZATION [Python]**
 **Vai trò:** ML Engineer + Data Analyst + Visualization Engineer
 **Kỹ năng:** MLlib, GraphFrames, Grafana, MongoDB
 
 ---
 
-### 3.3. Kế hoạch chi tiết từng tuần (Song song)
+## Kế hoạch chi tiết từng tuần (Song song)
 
 ---
 
-## 📅 TUẦN 1: Foundation & Setup
+### 📅 TUẦN 1: Foundation & Setup
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Toàn bộ môi trường development sẵn sàng
 - Dataset Olist đầy đủ
 - Planning và task breakdown hoàn chỉnh
 
-### **👨‍💼 MEMBER 1 (Leader) - Infrastructure Foundation**
+#### **👨‍💼 Nam - Infrastructure Foundation**
 - [ ] Setup Kafka cluster (Confluent Cloud hoặc Local với Docker)
   - [ ] Tạo topics: `orders_raw`, `orders_enriched`, `revenue_metrics`
   - [ ] Test producer/consumer
@@ -500,7 +59,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - PostgreSQL & Development Environment**
+#### **👨‍💻 Thế (Java Developer) - PostgreSQL & Development Environment**
 - [ ] Setup PostgreSQL database locally
   - [ ] Install PostgreSQL 15+
   - [ ] Enable WAL (Write-Ahead Logging) for CDC
@@ -523,7 +82,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Dataset & Spark Setup**
+#### **👨‍💻 Quang (Spark Batch Engineer) - Dataset & Spark Setup**
 - [ ] Download full Olist dataset (9 CSV files)
   - [ ] Download từ Kaggle
   - [ ] Verify data integrity
@@ -550,7 +109,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Streaming Study & Prep**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Streaming Study & Prep**
 - [ ] Study Spark Structured Streaming
   - [ ] Read official documentation
   - [ ] Complete streaming tutorials
@@ -573,7 +132,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - ML Study & MongoDB Setup**
+#### **👨‍💻 Huy (Data Scientist) - ML Study & MongoDB Setup**
 - [ ] Study Spark MLlib
   - [ ] ALS for recommendation
   - [ ] Random Forest for classification
@@ -599,14 +158,14 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 2: Infrastructure Services & Data Ingestion
+### 📅 TUẦN 2: Infrastructure Services & Data Ingestion
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Kafka, MongoDB, MinIO, PostgreSQL hoạt động end-to-end
 - Data được load vào PostgreSQL và Bronze layer
 - Kubernetes setup (basic)
 
-### **👨‍💼 MEMBER 1 (Leader) - Kubernetes & Integration**
+#### **👨‍💼 Nam - Kubernetes & Integration**
 - [ ] Setup Minikube
   - [ ] Install Minikube
   - [ ] Start cluster
@@ -634,7 +193,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Data Loading & CDC Setup**
+#### **👨‍💻 Thế (Java Developer) - Data Loading & CDC Setup**
 - [ ] Load Olist data vào PostgreSQL
   - [ ] Create tables schema (9 tables)
   - [ ] Write data loading scripts
@@ -656,7 +215,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Bronze Layer Ingestion**
+#### **👨‍💻 Quang (Spark Batch Engineer) - Bronze Layer Ingestion**
 - [ ] Create `scripts/data_ingestion.py`
   - [ ] Read 9 CSV files
   - [ ] Validate schemas
@@ -684,7 +243,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Kafka Consumer Setup**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Kafka Consumer Setup**
 - [ ] Create `services/spark-streaming/kafka_consumer.py`
   - [ ] Read from Kafka topic `orders_raw`
   - [ ] Parse JSON messages
@@ -708,7 +267,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - MongoDB Integration**
+#### **👨‍💻 Huy (Data Scientist) - MongoDB Integration**
 - [ ] Create `services/warehouse-nosql/mongo_connector.py`
   - [ ] Connection manager class
   - [ ] CRUD operations wrappers
@@ -737,15 +296,15 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 3: Batch Processing Core
+### 📅 TUẦN 3: Batch Processing Core
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Implement Broadcast Join và Sort-Merge Join
 - Create UDFs
 - Bronze → Silver transformations
 - Aggregations for Gold layer
 
-### **👨‍💼 MEMBER 1 (Leader) - Monitoring & Code Review**
+#### **👨‍💼 Nam - Monitoring & Code Review**
 - [ ] Setup monitoring framework
   - [ ] Install Prometheus (optional)
   - [ ] Configure Spark metrics
@@ -770,8 +329,8 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Assist Batch + Start Java Consumer**
-- [ ] Assist Member 3 with Spark SQL queries
+#### **👨‍💻 Thế (Java Developer) - Assist Batch + Start Java Consumer**
+- [ ] Assist Quang with Spark SQL queries
   - [ ] Review join strategies
   - [ ] Help debug performance issues
 - [ ] Start Java Kafka Consumer project
@@ -795,7 +354,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Joins & UDFs** ⭐
+#### **👨‍💻 Quang (Spark Batch Engineer) - Joins & UDFs** ⭐
 - [ ] Create `services/spark-batch/bronze_to_silver.py`
   - [ ] **Broadcast Join:** orders ⋈ product_categories (small table)
     ```python
@@ -857,8 +416,8 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Assist Batch + Streaming Prep**
-- [ ] Assist Member 3 with batch processing
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Assist Batch + Streaming Prep**
+- [ ] Assist Quang with batch processing
   - [ ] Help debug join issues
   - [ ] Performance testing
 - [ ] Prepare streaming transformations
@@ -881,7 +440,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - Gold Layer Aggregations**
+#### **👨‍💻 Huy (Data Scientist) - Gold Layer Aggregations**
 - [ ] Create `services/spark-batch/silver_to_gold.py`
   - [ ] **Revenue Aggregations:**
     ```python
@@ -933,16 +492,16 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 4: Batch Optimization & Advanced Transformations
+### 📅 TUẦN 4: Batch Optimization & Advanced Transformations
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Window functions (rank, lead, lag)
 - Pivot/Unpivot operations
 - Partitioning & Bucketing
 - Caching strategies
 - Performance optimization
 
-### **👨‍💼 MEMBER 1 (Leader) - Performance Monitoring**
+#### **👨‍💼 Nam - Performance Monitoring**
 - [ ] Setup Spark UI monitoring
   - [ ] Access Spark UI (port 4040)
   - [ ] Analyze job stages
@@ -960,7 +519,7 @@ Deployment: Kubernetes (Minikube)
   - [ ] Estimate cloud costs (if using cloud)
   - [ ] Resource usage report
   - [ ] Optimization recommendations
-- [ ] Code review Member 3's optimization work
+- [ ] Code review Quang's optimization work
 
 **Deliverables:**
 - ✅ Spark UI monitoring documented
@@ -969,7 +528,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - MongoDB Writer Service**
+#### **👨‍💻 Thế (Java Developer) - MongoDB Writer Service**
 - [ ] Create MongoDB writer microservice
   - [ ] `services/java-mongodb-writer/` Spring Boot project
   - [ ] REST API to receive data
@@ -995,7 +554,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Advanced Transformations** ⭐
+#### **👨‍💻 Quang (Spark Batch Engineer) - Advanced Transformations** ⭐
 - [ ] Implement Window Functions
   - [ ] **Ranking:** Top 10 products per category
     ```python
@@ -1094,7 +653,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Streaming Architecture**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Streaming Architecture**
 - [ ] Design streaming architecture document
   - [ ] Data flow diagram
   - [ ] Topic naming conventions
@@ -1120,7 +679,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - Feature Engineering for ML**
+#### **👨‍💻 Huy (Data Scientist) - Feature Engineering for ML**
 - [ ] Prepare ML datasets
   - [ ] **Recommendation dataset:**
     - User-item interaction matrix
@@ -1159,14 +718,14 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 5: Streaming Foundation
+### 📅 TUẦN 5: Streaming Foundation
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Kafka streaming pipeline working
 - Basic window aggregations
 - Write streaming results to MongoDB và MinIO
 
-### **👨‍💼 MEMBER 1 (Leader) - Airflow DAGs for Streaming**
+#### **👨‍💼 Nam - Airflow DAGs for Streaming**
 - [ ] Create Airflow DAG for stream monitoring
   - [ ] Check Kafka consumer lag
   - [ ] Check Spark streaming job status
@@ -1187,7 +746,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Kafka Producer Enhancement**
+#### **👨‍💻 Thế (Java Developer) - Kafka Producer Enhancement**
 - [ ] Enhance Java Kafka Producer
   - [ ] Read from PostgreSQL periodically
   - [ ] Produce to Kafka topics
@@ -1212,8 +771,8 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Support Streaming**
-- [ ] Assist Member 4 with Spark Streaming
+#### **👨‍💻 Quang (Spark Batch Engineer) - Support Streaming**
+- [ ] Assist Hoàng with Spark Streaming
   - [ ] Debug streaming queries
   - [ ] Help with transformations
 - [ ] Optimize batch jobs
@@ -1233,7 +792,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Basic Streaming** ⭐
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Basic Streaming** ⭐
 - [ ] Create `services/spark-streaming/streaming_aggregations.py`
   - [ ] Read from Kafka topic `orders_raw`
     ```python
@@ -1318,7 +877,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - MongoDB Query Optimization**
+#### **👨‍💻 Huy (Data Scientist) - MongoDB Query Optimization**
 - [ ] Analyze query patterns
   - [ ] Slow query log analysis
   - [ ] Identify frequent queries
@@ -1344,15 +903,15 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 6: Streaming Advanced Features
+### 📅 TUẦN 6: Streaming Advanced Features
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Watermarking for late data
 - Stateful streaming (mapGroupsWithState)
 - Session windows
 - Exactly-once semantics
 
-### **👨‍💼 MEMBER 1 (Leader) - Kubernetes Deployment**
+#### **👨‍💼 Nam - Kubernetes Deployment**
 - [ ] Deploy Spark Streaming on Kubernetes
   - [ ] Create Spark on K8s YAML
   - [ ] Deploy streaming job
@@ -1377,7 +936,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Circuit Breaker & Resilience**
+#### **👨‍💻 Thế (Java Developer) - Circuit Breaker & Resilience**
 - [ ] Implement Circuit Breaker pattern
   - [ ] Use Resilience4j
   - [ ] Circuit breaker for MongoDB writes
@@ -1403,7 +962,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Testing & Documentation**
+#### **👨‍💻 Quang (Spark Batch Engineer) - Testing & Documentation**
 - [ ] Write unit tests for batch processing
   - [ ] Test UDFs
   - [ ] Test transformations
@@ -1430,7 +989,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Advanced Streaming** ⭐
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Advanced Streaming** ⭐
 - [ ] Implement Watermarking for late data
   ```python
   # Allow 10 minutes of late data
@@ -1505,7 +1064,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - Grafana Dashboards Development**
+#### **👨‍💻 Huy (Data Scientist) - Grafana Dashboards Development**
 - [ ] Create Dashboard 2: Customer Analytics
   - [ ] Customer segments pie chart
   - [ ] RFM heatmap
@@ -1533,15 +1092,15 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 7: Java Integration & System Integration
+### 📅 TUẦN 7: Java Integration & System Integration
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Java services fully integrated
 - End-to-end data flow working
 - Service discovery and load balancing
 - Error handling and resilience
 
-### **👨‍💼 MEMBER 1 (Leader) - Service Integration** ⭐
+#### **👨‍💼 Nam - Service Integration** ⭐
 - [ ] Implement service discovery (if using K8s)
   - [ ] Kubernetes Services
   - [ ] Service mesh (optional - Istio)
@@ -1568,7 +1127,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Java Consumer & Producer** ⭐
+#### **👨‍💻 Thế (Java Developer) - Java Consumer & Producer** ⭐
 - [ ] Complete Java Kafka Consumer
   - [ ] `services/java-consumer/`
   - [ ] Consume from multiple topics
@@ -1609,7 +1168,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Batch-Stream Integration**
+#### **👨‍💻 Quang (Spark Batch Engineer) - Batch-Stream Integration**
 - [ ] Create unified data model
   - [ ] Reconcile batch and streaming schemas
   - [ ] Merge batch and streaming results in MongoDB
@@ -1635,7 +1194,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Streaming Optimization**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Streaming Optimization**
 - [ ] Optimize streaming performance
   - [ ] Tune Kafka consumer settings
     ```python
@@ -1671,7 +1230,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - Prepare for ML**
+#### **👨‍💻 Huy (Data Scientist) - Prepare for ML**
 - [ ] Finalize ML datasets
   - [ ] Feature selection
   - [ ] Train/validation/test split
@@ -1699,14 +1258,14 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-## 📅 TUẦN 8: Advanced Analytics (ML & Graph)
+### 📅 TUẦN 8: Advanced Analytics (ML & Graph)
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - 3 ML models trained and evaluated
 - GraphFrames analysis completed
 - Time series analysis
 
-### **👨‍💼 MEMBER 1 (Leader) - MLflow Setup & Code Review**
+#### **👨‍💼 Nam - MLflow Setup & Code Review**
 - [ ] Setup MLflow (optional but recommended)
   - [ ] Install MLflow
   - [ ] Configure tracking server
@@ -1731,12 +1290,12 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - ML Model Serving (Optional)**
+#### **👨‍💻 Thế (Java Developer) - ML Model Serving (Optional)**
 - [ ] Create model serving API (Optional)
   - [ ] REST API to serve predictions
   - [ ] Load ML model (using PMML or ONNX)
   - [ ] Prediction endpoint
-- [ ] Assist Member 5 with ML infrastructure
+- [ ] Assist Huy with ML infrastructure
   - [ ] Help with data pipeline for ML
   - [ ] Review ML code
 - [ ] Finalize Java services documentation
@@ -1756,8 +1315,8 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Support ML Data Prep**
-- [ ] Assist Member 5 with data preparation
+#### **👨‍💻 Quang (Spark Batch Engineer) - Support ML Data Prep**
+- [ ] Assist Huy with data preparation
   - [ ] Feature engineering pipeline
   - [ ] Data sampling for training
   - [ ] Data validation
@@ -1781,7 +1340,7 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Real-time Feature Engineering**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Real-time Feature Engineering**
 - [ ] Implement real-time feature computation
   - [ ] Streaming aggregations as features
   - [ ] Rolling window features
@@ -1793,7 +1352,7 @@ Deployment: Kubernetes (Minikube)
   - [ ] FastAPI to query features
   - [ ] Low-latency feature retrieval
   - [ ] Caching layer
-- [ ] Assist Member 5 with ML
+- [ ] Assist Huy with ML
   - [ ] Help with streaming ML inference (if needed)
   - [ ] Review ML code
 
@@ -1805,9 +1364,9 @@ Deployment: Kubernetes (Minikube)
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - ML & Advanced Analytics** ⭐
+#### **👨‍💻 Huy (Data Scientist) - ML & Advanced Analytics** ⭐
 
-#### **Machine Learning với Spark MLlib:**
+###### **Machine Learning với Spark MLlib:**
 
 **Model 1: Product Recommendation (ALS)**
 ```python
@@ -1910,7 +1469,7 @@ model = lr.fit(train)
 predictions = model.transform(test)
 ```
 
-#### **Graph Analytics với GraphFrames:**
+###### **Graph Analytics với GraphFrames:**
 
 ```python
 from graphframes import GraphFrame
@@ -1966,7 +1525,7 @@ triangle_count = graph.triangleCount()
 motifs = graph.find("(customer)-[purchases]->(product); (seller)-[sells]->(product)")
 ```
 
-#### **Time Series Analysis:**
+###### **Time Series Analysis:**
 
 ```python
 # Seasonality decomposition
@@ -2007,15 +1566,15 @@ anomalies = revenue_df.filter(
 
 ---
 
-## 📅 TUẦN 9: Integration, Testing & Monitoring
+### 📅 TUẦN 9: Integration, Testing & Monitoring
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Full pipeline working end-to-end
 - All tests passing
 - Monitoring dashboards operational
 - Performance acceptable
 
-### **👨‍💼 MEMBER 1 (Leader) - Integration & Performance Testing** ⭐
+#### **👨‍💼 Nam - Integration & Performance Testing** ⭐
 - [ ] End-to-end integration testing
   - [ ] Data flow validation (Postgres → Kafka → Spark → MongoDB → Grafana)
   - [ ] Data consistency checks
@@ -2045,7 +1604,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Monitoring & Logging**
+#### **👨‍💻 Thế (Java Developer) - Monitoring & Logging**
 - [ ] Centralized logging setup
   - [ ] Configure structured logging
   - [ ] Log aggregation (ELK stack optional, or file-based)
@@ -2071,7 +1630,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Testing & Documentation**
+#### **👨‍💻 Quang (Spark Batch Engineer) - Testing & Documentation**
 - [ ] Comprehensive testing
   - [ ] Unit tests for all functions
   - [ ] Integration tests for pipelines
@@ -2099,7 +1658,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Streaming Testing**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Streaming Testing**
 - [ ] Streaming integration tests
   - [ ] Test window aggregations
   - [ ] Test watermarking with late data
@@ -2128,7 +1687,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - Finalize Dashboards & Visualization**
+#### **👨‍💻 Huy (Data Scientist) - Finalize Dashboards & Visualization**
 - [ ] Finalize all Grafana dashboards
   - [ ] Dashboard 1: Business Metrics (polish)
   - [ ] Dashboard 2: Customer Analytics (polish)
@@ -2162,15 +1721,15 @@ anomalies = revenue_df.filter(
 
 ---
 
-## 📅 TUẦN 10: Documentation, Presentation & Finalization
+### 📅 TUẦN 10: Documentation, Presentation & Finalization
 
-### **🎯 Mục tiêu tuần:**
+#### **🎯 Mục tiêu tuần:**
 - Final report completed
 - Presentation slides ready
 - Demo video recorded
 - All documentation finalized
 
-### **👨‍💼 MEMBER 1 (Leader) - Final Report & Presentation** ⭐
+#### **👨‍💼 Nam - Final Report & Presentation** ⭐
 - [ ] Write final report (30-40 pages)
   - [ ] **Section 1:** Introduction & Business Context
   - [ ] **Section 2:** Architecture & Design
@@ -2230,7 +1789,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 2 (Java Developer) - Java Services Documentation**
+#### **👨‍💻 Thế (Java Developer) - Java Services Documentation**
 - [ ] Write Java services documentation
   - [ ] Architecture of Java services
   - [ ] API documentation (OpenAPI/Swagger)
@@ -2257,7 +1816,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 3 (Spark Batch Engineer) - Batch Processing Documentation**
+#### **👨‍💻 Quang (Spark Batch Engineer) - Batch Processing Documentation**
 - [ ] Write batch processing documentation
   - [ ] Architecture of batch pipeline
   - [ ] Data flow explanation
@@ -2285,7 +1844,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 4 (Spark Streaming Engineer) - Streaming Documentation**
+#### **👨‍💻 Hoàng (Spark Streaming Engineer) - Streaming Documentation**
 - [ ] Write streaming documentation
   - [ ] Architecture of streaming pipeline
   - [ ] Watermarking strategy explained
@@ -2313,7 +1872,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **👨‍💻 MEMBER 5 (Data Scientist) - ML & Visualization Documentation**
+#### **👨‍💻 Huy (Data Scientist) - ML & Visualization Documentation**
 - [ ] Write ML documentation
   - [ ] Model architecture & algorithms
   - [ ] Feature engineering explained
@@ -2343,7 +1902,7 @@ anomalies = revenue_df.filter(
 
 ---
 
-### **ALL MEMBERS - Final Week Activities:**
+#### **ALL MEMBERS - Final Week Activities:**
 - [ ] Practice presentation (2-3 times)
 - [ ] Review final report
 - [ ] Test demo scenarios
@@ -2355,27 +1914,27 @@ anomalies = revenue_df.filter(
 
 ---
 
-### 3.4. Technology Stack Summary
+#### 3.4. Technology Stack Summary
 
 | Component | Technology | Owner |
 |-----------|-----------|-------|
-| **Data Source** | PostgreSQL | Member 2 |
+| **Data Source** | PostgreSQL | Thế |
 | **CDC** | Debezium | Member 1, 2 |
 | **Message Queue** | Apache Kafka | Member 1, 2, 4 |
-| **Stream Processing** | PySpark Structured Streaming | Member 4 |
-| **Batch Processing** | PySpark | Member 3 |
+| **Stream Processing** | PySpark Structured Streaming | Hoàng |
+| **Batch Processing** | PySpark | Quang |
 | **Distributed Storage** | MinIO (S3-compatible) | Member 1 |
 | **NoSQL Database** | MongoDB Atlas | Member 1, 5 |
 | **Java Services** | Spring Boot + Kafka + MongoDB | Member 1, 2 |
-| **ML & Analytics** | Spark MLlib, GraphFrames | Member 5 |
+| **ML & Analytics** | Spark MLlib, GraphFrames | Huy |
 | **Orchestration** | Apache Airflow | Member 1 |
 | **Containerization** | Docker | All |
 | **Orchestration** | Kubernetes (Minikube) | Member 1 |
-| **Visualization** | Grafana | Member 5 |
+| **Visualization** | Grafana | Huy |
 | **Monitoring** | Prometheus (optional) | Member 1, 2 |
 | **Version Control** | Git/GitHub | All |
 
-### 3.5. Code Structure
+#### 3.5. Code Structure
 
 ```
 Big-Data/
@@ -2454,7 +2013,7 @@ Big-Data/
 
 ---
 
-### 3.6. Communication & Collaboration
+#### 3.6. Communication & Collaboration
 
 **Daily Standup (15 minutes):**
 - What did you do yesterday?
@@ -2483,7 +2042,7 @@ Big-Data/
 
 ---
 
-### 3.7. Definition of Done
+#### 3.7. Definition of Done
 
 **For each task:**
 - [ ] Code written and tested
@@ -2510,21 +2069,21 @@ Big-Data/
 
 ---
 
-## CRITICAL SUCCESS FACTORS
+### CRITICAL SUCCESS FACTORS
 
-### ⭐ Top Priorities (MUST HAVE):
+#### ⭐ Top Priorities (MUST HAVE):
 1. **Spark Advanced Features (60%):** All 6 requirements fully implemented
 2. **Working Pipeline (20%):** End-to-end data flow operational
 3. **Documentation (10%):** Clear, comprehensive report
 4. **Visualization (10%):** Grafana dashboards showing results
 
-### ⚠️ Medium Priority (NICE TO HAVE):
+#### ⚠️ Medium Priority (NICE TO HAVE):
 - Advanced ML models with high accuracy
 - Complex graph analysis
 - Perfect performance optimization
 - Comprehensive testing (>90% coverage)
 
-### 💡 Low Priority (BONUS):
+#### 💡 Low Priority (BONUS):
 - Security features
 - Advanced auto-scaling
 - CI/CD pipeline
@@ -2534,7 +2093,7 @@ Big-Data/
 
 **Good luck team! Chúc mừng thành công! 🚀**
 
-#### **MEMBER 1 - TEAM LEADER (Bạn)**
+###### **MEMBER 1 - TEAM LEADER (Bạn)**
 
 **Vai trò:** Project Manager + Infrastructure Lead + Integration Engineer
 
@@ -2572,7 +2131,7 @@ Big-Data/
 
 ---
 
-#### **MEMBER 2 - SPARK BATCH ENGINEER**
+###### **Thế - SPARK BATCH ENGINEER**
 
 **Vai trò:** Chuyên gia Spark Batch Processing
 
@@ -2641,7 +2200,7 @@ Big-Data/
 
 ---
 
-#### **MEMBER 3 - SPARK STREAMING ENGINEER**
+###### **Quang - SPARK STREAMING ENGINEER**
 
 **Vai trò:** Chuyên gia Spark Structured Streaming
 
@@ -2705,7 +2264,7 @@ Big-Data/
 
 ---
 
-#### **MEMBER 4 - ML & ADVANCED ANALYTICS ENGINEER**
+###### **Hoàng - ML & ADVANCED ANALYTICS ENGINEER**
 
 **Vai trò:** Data Scientist - Machine Learning & Graph Analytics
 
@@ -2779,7 +2338,7 @@ Big-Data/
 
 ---
 
-#### **MEMBER 5 - DATA ENGINEERING & VISUALIZATION**
+###### **Huy - DATA ENGINEERING & VISUALIZATION**
 
 **Vai trò:** Data Engineer + Visualization Engineer
 
@@ -2862,15 +2421,15 @@ Big-Data/
 
 ---
 
-### 3.3. Weekly Sprint Plan
+#### 3.3. Weekly Sprint Plan
 
-#### **TUẦN 1-2: Infrastructure Setup Sprint**
+###### **TUẦN 1-2: Infrastructure Setup Sprint**
 
 **Mục tiêu:** Tất cả infrastructure services sẵn sàng
 
 **Công việc:**
 
-**Member 1 (Leader):**
+**Nam:**
 - [ ] Setup Kafka cluster (Confluent Cloud hoặc local)
 - [ ] Setup MinIO (docker hoặc k8s)
 - [ ] Setup MongoDB Atlas account
@@ -2878,7 +2437,7 @@ Big-Data/
 - [ ] Create base docker-compose.yml
 - [ ] Document connection strings
 
-**Member 2-5:**
+**Thế-5:**
 - [ ] Install Java 17, Python 3.12, Spark 3.5.8
 - [ ] Setup development environment
 - [ ] Clone & explore Olist dataset
@@ -2894,17 +2453,17 @@ Big-Data/
 
 ---
 
-#### **TUẦN 3-4: Batch Processing Core Sprint**
+###### **TUẦN 3-4: Batch Processing Core Sprint**
 
 **Mục tiêu:** Spark Batch pipeline hoàn chỉnh với joins + aggregations
 
 **Member 1:**
 - [ ] Setup Airflow (docker)
 - [ ] Create DAG for batch ingestion
-- [ ] Monitor Member 2's progress
+- [ ] Monitor Thế's progress
 - [ ] Code review
 
-**Member 2:**
+**Thế:**
 - [ ] Download all 9 Olist CSV files
 - [ ] Create `data_ingestion.py` (CSV → Parquet)
 - [ ] Create `bronze_to_silver.py`:
@@ -2916,17 +2475,17 @@ Big-Data/
   - [ ] RFM segmentation
   - [ ] Product performance metrics
 
-**Member 3:**
+**Quang:**
 - [ ] Study Structured Streaming documentation
 - [ ] Prepare streaming test data
-- [ ] Assist Member 2 with joins
+- [ ] Assist Thế with joins
 
-**Member 4:**
+**Hoàng:**
 - [ ] Data exploration & EDA
 - [ ] Feature engineering for ML
 - [ ] Prepare ML dataset
 
-**Member 5:**
+**Huy:**
 - [ ] Run data quality checks
 - [ ] Create data profiling report
 - [ ] Design MongoDB schema
@@ -2941,13 +2500,13 @@ Big-Data/
 
 ---
 
-#### **TUẦN 5: Optimization & Advanced Batch Sprint**
+###### **TUẦN 5: Optimization & Advanced Batch Sprint**
 
 **Member 1:**
 - [ ] Performance monitoring setup
 - [ ] Resource allocation tuning
 
-**Member 2:**
+**Thế:**
 - [ ] Implement window functions (rank, lead, lag)
 - [ ] Implement pivot/unpivot operations
 - [ ] Partitioning strategy (by year, month)
@@ -2956,7 +2515,7 @@ Big-Data/
 - [ ] Analyze `.explain()` output
 - [ ] Document performance improvements
 
-**Member 5:**
+**Huy:**
 - [ ] Complete MongoDB connector
 - [ ] Write batch data to MongoDB
 - [ ] Create indexes
@@ -2972,7 +2531,7 @@ Big-Data/
 
 ---
 
-#### **TUẦN 6-7: Streaming Processing Sprint**
+###### **TUẦN 6-7: Streaming Processing Sprint**
 
 **Mục tiêu:** Real-time pipeline end-to-end
 
@@ -2982,11 +2541,11 @@ Big-Data/
 - [ ] Monitor streaming pipeline
 - [ ] Assist integration
 
-**Member 2:**
+**Thế:**
 - [ ] Support streaming integration
-- [ ] Code review for Member 3
+- [ ] Code review for Quang
 
-**Member 3:**
+**Quang:**
 - [ ] Create `streaming_consumer.py`
 - [ ] Implement window aggregations:
   - [ ] Tumbling window (5 min)
@@ -3000,7 +2559,7 @@ Big-Data/
 - [ ] Write streaming results to MongoDB
 - [ ] Write streaming results to MinIO (Delta Lake)
 
-**Member 5:**
+**Huy:**
 - [ ] Configure Debezium connector
 - [ ] Test CDC pipeline
 - [ ] Create Postgres test data generator script
@@ -3016,7 +2575,7 @@ Big-Data/
 
 ---
 
-#### **TUẦN 8: Advanced Analytics Sprint**
+###### **TUẦN 8: Advanced Analytics Sprint**
 
 **Mục tiêu:** ML models + Graph analysis hoàn chỉnh
 
@@ -3024,7 +2583,7 @@ Big-Data/
 - [ ] Review ML code
 - [ ] Setup MLflow (optional but good)
 
-**Member 4:**
+**Hoàng:**
 - [ ] Implement ALS Recommendation:
   - [ ] Train model
   - [ ] Evaluate RMSE
@@ -3046,11 +2605,11 @@ Big-Data/
   - [ ] Trend analysis
   - [ ] Anomaly detection
 
-**Member 2, 3:**
+**Thế, 3:**
 - [ ] Assist with data preparation for ML
 - [ ] Review ML code
 
-**Member 5:**
+**Huy:**
 - [ ] Prepare datasets for ML from MongoDB
 - [ ] Validate ML results
 
@@ -3063,7 +2622,7 @@ Big-Data/
 
 ---
 
-#### **TUẦN 9: Integration & Testing Sprint**
+###### **TUẦN 9: Integration & Testing Sprint**
 
 **Mục tiêu:** End-to-end pipeline hoạt động ổn định
 
@@ -3074,14 +2633,14 @@ Big-Data/
 - [ ] Load testing
 - [ ] Fix integration bugs
 
-**Member 2, 3, 4:**
+**Thế, 3, 4:**
 - [ ] Bug fixes
 - [ ] Code refactoring
 - [ ] Add error handling
 - [ ] Add logging
 - [ ] Optimize slow jobs
 
-**Member 5:**
+**Huy:**
 - [ ] Integration tests
 - [ ] Performance benchmarks
 - [ ] System monitoring setup
@@ -3096,7 +2655,7 @@ Big-Data/
 
 ---
 
-#### **TUẦN 10: Visualization & Documentation Sprint**
+###### **TUẦN 10: Visualization & Documentation Sprint**
 
 **Mục tiêu:** Hoàn thiện dashboard, báo cáo, và presentation
 
@@ -3106,13 +2665,13 @@ Big-Data/
 - [ ] Record demo video
 - [ ] Prepare Q&A document
 
-**Member 2, 3, 4:**
+**Thế, 3, 4:**
 - [ ] Write technical documentation for their components
 - [ ] Create code documentation (docstrings)
 - [ ] Write README for each module
 - [ ] Prepare demo scenarios
 
-**Member 5:**
+**Huy:**
 - [ ] Complete 4 Grafana dashboards
 - [ ] Create dashboard user guide
 - [ ] Write troubleshooting guide
@@ -3134,7 +2693,7 @@ Big-Data/
 
 ---
 
-### 3.4. Risks & Mitigation
+#### 3.4. Risks & Mitigation
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
@@ -3145,7 +2704,7 @@ Big-Data/
 | Integration issues | High | High | Reserve tuần 9 cho integration, daily standup |
 | Member bỏ cuộc giữa chừng | High | Low | Phân công rõ ràng, milestone tracking, peer pressure |
 
-### 3.5. Tools & Communication
+#### 3.5. Tools & Communication
 
 **Communication:**
 - Daily standup (15 min): Slack/Zalo call
@@ -3165,9 +2724,9 @@ Big-Data/
 
 ---
 
-## PHẦN 4: CÁC ĐIỂM LƯU Ý KỸ THUẬT
+### PHẦN 4: CÁC ĐIỂM LƯU Ý KỸ THUẬT
 
-### 4.1. Spark Configuration for Learning
+#### 4.1. Spark Configuration for Learning
 
 ```python
 # spark_config.py
@@ -3181,7 +2740,7 @@ spark = SparkSession.builder \
     .getOrCreate()
 ```
 
-### 4.2. Dataset Augmentation Strategy
+#### 4.2. Dataset Augmentation Strategy
 
 ```python
 # Tạo data lớn hơn từ Olist
@@ -3201,7 +2760,7 @@ def augment_data(df, multiplier=10):
     return augmented
 ```
 
-### 4.3. Kafka Topic Design
+#### 4.3. Kafka Topic Design
 
 ```
 orders_raw          - Raw order events from CDC
@@ -3210,7 +2769,7 @@ revenue_metrics     - Real-time revenue aggregations
 fraud_alerts        - Fraud detection alerts
 ```
 
-### 4.4. MongoDB Collections Design
+#### 4.4. MongoDB Collections Design
 
 ```javascript
 // revenue_metrics collection
@@ -3236,7 +2795,7 @@ fraud_alerts        - Fraud detection alerts
 }
 ```
 
-### 4.5. Key Spark Operations to Demonstrate
+#### 4.5. Key Spark Operations to Demonstrate
 
 **1. Broadcast Join Example:**
 ```python
@@ -3287,9 +2846,9 @@ windowed = parsed \
 
 ---
 
-## PHẦN 5: KẾT LUẬN & KHUYẾN NGHỊ
+### PHẦN 5: KẾT LUẬN & KHUYẾN NGHỊ
 
-### 5.1. Tóm tắt
+#### 5.1. Tóm tắt
 
 Dự án hiện tại chỉ mới có **5% tiến độ**. Để hoàn thành đúng yêu cầu giảng viên trong 2.5 tháng, nhóm cần:
 
@@ -3297,7 +2856,7 @@ Dự án hiện tại chỉ mới có **5% tiến độ**. Để hoàn thành đ
 2. **Setup Infrastructure đúng cách (20% effort)** - Foundation cho mọi thứ
 3. **Integration & Visualization (20% effort)** - Chứng minh hệ thống hoạt động
 
-### 5.2. Critical Success Factors
+#### 5.2. Critical Success Factors
 
 ✅ **Phải có:**
 - Tất cả 6 yêu cầu Spark được implement
@@ -3311,7 +2870,7 @@ Dự án hiện tại chỉ mới có **5% tiến độ**. Để hoàn thành đ
 - Complex graph analysis
 - Perfect performance optimization
 
-### 5.3. Next Steps (Immediate Actions)
+#### 5.3. Next Steps (Immediate Actions)
 
 **Tuần này (Tuần 1):**
 
@@ -3332,10 +2891,10 @@ Dự án hiện tại chỉ mới có **5% tiến độ**. Để hoàn thành đ
    - [ ] Setup development environment
 
 3. **Specific:**
-   - Member 2: Đọc sâu về Spark SQL, Joins, Window Functions
-   - Member 3: Đọc sâu về Structured Streaming, Watermarking
-   - Member 4: Đọc sâu về MLlib, GraphFrames
-   - Member 5: Đọc về MongoDB, Grafana, Debezium
+   - Thế: Đọc sâu về Spark SQL, Joins, Window Functions
+   - Quang: Đọc sâu về Structured Streaming, Watermarking
+   - Hoàng: Đọc sâu về MLlib, GraphFrames
+   - Huy: Đọc về MongoDB, Grafana, Debezium
 
 **Deliverable tuần 1:**
 - [ ] GitHub repo với structure folders
@@ -3345,9 +2904,9 @@ Dự án hiện tại chỉ mới có **5% tiến độ**. Để hoàn thành đ
 
 ---
 
-## PHẦN 6: APPENDIX
+### PHẦN 6: APPENDIX
 
-### 6.1. Learning Resources
+#### 6.1. Learning Resources
 
 **Spark:**
 - [Spark Official Documentation](https://spark.apache.org/docs/latest/)
@@ -3368,7 +2927,7 @@ Dự án hiện tại chỉ mới có **5% tiến độ**. Để hoàn thành đ
 **Kubernetes:**
 - [Minikube Start](https://minikube.sigs.k8s.io/docs/start/)
 
-### 6.2. Code Templates Location
+#### 6.2. Code Templates Location
 
 ```
 project/
@@ -3380,7 +2939,7 @@ project/
 │   └── k8s_deployment_template.yaml
 ```
 
-### 6.3. Grading Rubric (Estimate)
+#### 6.3. Grading Rubric (Estimate)
 
 | Criteria | Weight | Notes |
 |----------|--------|-------|

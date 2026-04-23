@@ -1,0 +1,188 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="deployment-orchestration" name="Deployment &amp; Orchestration">
+    <mxGraphModel dx="1453" dy="828" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="10" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Apache Airflow" vertex="1">
+          <mxGeometry height="260" width="340" x="40" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Airflow Scheduler : Lập lịch DAG batch." vertex="1">
+          <mxGeometry height="60" width="290" x="41" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Airflow Webserver : Quản lý orchestration." vertex="1">
+          <mxGeometry height="60" width="290" x="41" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="20" parent="1" style="swimlane;horizontal=0;startSize=36;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#495057;fontStyle=1;fontColor=#000000;" value="Kubernetes Cluster (Minikube)" vertex="1">
+          <mxGeometry height="464" width="2080" x="430" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="21" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Debezium Pod : CDC connector đồng bộ thay đổi." vertex="1">
+          <mxGeometry height="70" width="290" x="52" y="19" as="geometry" />
+        </mxCell>
+        <mxCell id="22" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Kafka Pod : Message broker cho event streaming." vertex="1">
+          <mxGeometry height="70" width="290" x="58" y="162" as="geometry" />
+        </mxCell>
+        <mxCell id="23" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Spark Streaming Job Pod : Xử lý luồng real-time." vertex="1">
+          <mxGeometry height="70" width="320" x="680" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="24" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Spring Boot Kafka Consumer Pod : Đọc topic Kafka." vertex="1">
+          <mxGeometry height="70" width="320" x="1030" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="25" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Spring Boot MongoDB Writer Pod : Ghi dữ liệu phục vụ truy vấn." vertex="1">
+          <mxGeometry height="70" width="330" x="1380" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="26" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="MongoDB Pod : NoSQL serving database." vertex="1">
+          <mxGeometry height="70" width="300" x="1771" y="133" as="geometry" />
+        </mxCell>
+        <mxCell id="27" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="Spark Batch Job Pod (Bronze→Silver) : Batch transform giai đoạn 1." vertex="1">
+          <mxGeometry height="70" width="360" x="670" y="247" as="geometry" />
+        </mxCell>
+        <mxCell id="28" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="Spark Batch Job Pod (Silver→Gold) : Batch transform giai đoạn 2." vertex="1">
+          <mxGeometry height="70" width="360" x="1433" y="372" as="geometry" />
+        </mxCell>
+        <mxCell id="29" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="MinIO Pod : Object storage Bronze/Silver/Gold." vertex="1">
+          <mxGeometry height="70" width="300" x="1458" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="40" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Monitoring Stack" vertex="1">
+          <mxGeometry height="260" width="2080" x="427" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="41" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" value="Prometheus : Thu thập metrics từ cluster." vertex="1">
+          <mxGeometry height="70" width="420" x="120" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="42" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" value="Grafana : Dashboard quan sát hệ thống." vertex="1">
+          <mxGeometry height="70" width="420" x="655" y="22" as="geometry" />
+        </mxCell>
+        <mxCell id="101" edge="1" parent="1" source="21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="22" value="Streams CDC events">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="603" y="152" />
+              <mxPoint x="603" y="152" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="102" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="23" value="Consumes topics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="715" y="145" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="103" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="24" value="Consumes topics">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="104" edge="1" parent="1" source="24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="25" value="Calls write service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1620" y="155" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="105" edge="1" parent="1" source="25" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="26" value="Writes serving documents">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2281" y="142" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="106" edge="1" parent="1" source="23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="26" value="Realtime upserts">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="81" />
+              <mxPoint x="2320" y="81" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="107" edge="1" parent="1" source="29" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="27" value="Reads Bronze data">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1678" y="308" />
+              <mxPoint x="1678" y="308" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="108" edge="1" parent="1" source="27" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="29" value="Writes Silver output">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1673" y="332" />
+              <mxPoint x="1673" y="332" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="109" edge="1" parent="1" source="29" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="28" value="Reads Silver data">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2109" y="383" />
+              <mxPoint x="2111" y="383" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="110" edge="1" parent="1" source="28" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="29" value="Writes Gold output">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1967" y="383" />
+              <mxPoint x="1965" y="383" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="111" edge="1" parent="1" source="29" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="26" value="Loads Gold views">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2320" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="112" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="27" value="Triggers daily">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="731" y="316" />
+              <mxPoint x="731" y="316" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="113" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="28" value="Triggers daily">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="226" y="436" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="114" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#d79b00;endArrow=open;fontColor=#000000;" value="Scrapes metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="633" y="657" />
+            </Array>
+            <mxPoint x="633" y="657" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="115" edge="1" parent="1" source="23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#d79b00;endArrow=open;fontColor=#000000;" target="41" value="Scrapes metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="814" y="166" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="116" edge="1" parent="1" source="25" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#d79b00;endArrow=open;fontColor=#000000;" target="41" value="Scrapes metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1846" y="672" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="117" edge="1" parent="1" source="26" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#d79b00;endArrow=open;fontColor=#000000;" target="41" value="Scrapes metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2383" y="708" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="118" edge="1" parent="1" source="41" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="42" value="Visualizes metrics">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="847" y="611" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
