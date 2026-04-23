@@ -15,7 +15,7 @@ spec:
       labels:
         app: kafka
     spec:
-      # InitContainers thực hiện "depends_on: zookeeper"
+      enableServiceLinks: false
       initContainers:
         - name: wait-for-zookeeper
           image: busybox
@@ -33,9 +33,10 @@ spec:
               value: "1"
             - name: KAFKA_ZOOKEEPER_CONNECT
               value: "zookeeper.default.svc.cluster.local:2181"
-            # Lưu ý phần ADVERTISED_LISTENERS phải chỉnh nhẹ để trỏ tên miền minikube. Nếu dùng minikube, public IP của minikube nên được định tuyến. Tạm giả định minikube IP localhost.
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:30092,PLAINTEXT_DOCKER://0.0.0.0:9094"
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka.default.svc.cluster.local:29092,PLAINTEXT_HOST://localhost:30092,PLAINTEXT_DOCKER://kafka.default.svc.cluster.local:9094"
+              value: "PLAINTEXT://kafka.default.svc.cluster.local:9092,PLAINTEXT_HOST://localhost:30092,PLAINTEXT_DOCKER://kafka.default.svc.cluster.local:9094"
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
               value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,PLAINTEXT_DOCKER:PLAINTEXT"
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
