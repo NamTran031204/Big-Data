@@ -133,8 +133,8 @@ class MongoConnector:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    MONGO_URI = "mongodb+srv://dungquennua:huycoi234@bigdata.rsbygb5.mongodb.net/?appName=BigData"
-    DB_NAME = "users"
+    MONGO_URI = "url"
+    DB_NAME = "name"
 
     mongo = MongoConnector(MONGO_URI, DB_NAME)
     mongo.connect()
