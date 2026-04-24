@@ -1,5 +1,7 @@
 from pymongo import MongoClient, UpdateOne
 from pymongo.errors import BulkWriteError
+from pymongo import ASCENDING, DESCENDING
+from datetime import datetime, UTC
 from typing import List, Dict, Any, Optional
 import logging
 
@@ -126,6 +128,43 @@ class MongoConnector:
             logging.error(f"Bulk upsert error: {bwe.details}")
             return None
 
+    # ======================
+    # INDEX MANAGEMENT
+    # ======================
+
+    def create_index(self, collection_name: str, field: str, unique: bool = False):
+        """
+        Create single field index
+        """
+        col = self.get_collection(collection_name)
+        return col.create_index([(field, ASCENDING)], unique=unique)
+
+    def create_compound_index(self, collection_name: str, fields: List[tuple]):
+        """
+        fields: [("field1", ASCENDING), ("field2", DESCENDING)]
+        """
+        col = self.get_collection(collection_name)
+        return col.create_index(fields)
+
+    def create_ttl_index(self, collection_name: str, field: str, expire_seconds: int):
+        """
+        TTL index for auto-delete documents
+        field must be datetime type
+        """
+        col = self.get_collection(collection_name)
+        return col.create_index(
+            [(field, ASCENDING)],
+            expireAfterSeconds=expire_seconds
+        )
+
+    def list_indexes(self, collection_name: str):
+        col = self.get_collection(collection_name)
+        return list(col.list_indexes())
+
+    def drop_index(self, collection_name: str, index_name: str):
+        col = self.get_collection(collection_name)
+        return col.drop_index(index_name)
+
 
 # ======================
 # USAGE EXAMPLE
@@ -140,16 +179,32 @@ if __name__ == "__main__":
     mongo.connect()
 
     # Insert example
-    mongo.insert_one("testdb", {"name": "Alice", "age": 25})
+    mongo.insert_one("test1", {"name": "Alice", "age": 25})
 
     # Bulk insert
-    docs = [{"name": f"User{i}", "age": i} for i in range(10000)]
-    mongo.bulk_insert("testdb", docs, batch_size=5)
+    docs = [{"name": f"User{i}", "age": i} for i in range(10)]
+    mongo.bulk_insert("test1", docs, batch_size=5)
 
     # Upsert example
-    mongo.upsert_one("testdb", {"name": "Alice"}, {"age": 30})
+    mongo.upsert_one("test1", {"name": "Alice"}, {"age": 30})
 
     # Bulk upsert
-    mongo.bulk_upsert("testdb", docs, key_fields=["name"])
+    mongo.bulk_upsert("test1", docs, key_fields=["name"])
+
+    mongo.create_compound_index(
+        "test1",
+        [("name", 1), ("age", -1)]
+    )
+
+    mongo.create_index("test1", "name", unique=True)
+
+    mongo.insert_one("logs", {
+        "message": "test log",
+        "created_at": datetime.now(UTC)
+    })
+
+    indexes = mongo.list_indexes("test1")
+    for idx in indexes:
+        print(idx)
 
     mongo.close()
