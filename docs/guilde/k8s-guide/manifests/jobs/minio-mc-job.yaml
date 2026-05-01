@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-mc-init
+spec:
+  # Thử lại 5 lần nếu MinIO chưa kịp dậy
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command: ["/bin/sh", "/scripts/init-bucket.sh"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          volumeMounts:
+            - name: script-volume
+              mountPath: /scripts/init-bucket.sh
+              subPath: init-bucket.sh
+            # Giả định Mount một emptydir để file log có thể sinh ra tạm
+            - name: config-volume
+              mountPath: /config
+      volumes:
+        - name: script-volume
+          configMap:
+            name: minio-init-script # Tên ConfigMap tạo bằng CLI
+        - name: config-volume
+          emptyDir: {}
