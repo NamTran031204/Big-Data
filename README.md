@@ -4,22 +4,18 @@
 - **Language:** Python 3.12
 - **Stream Processing:** PySpark 3.5.8 (Structured Streaming)
 - **Message Broker:** Apache Kafka (Dockerized)
+- **Storage & Fault Tolerance:** MinIO (S3 Compatible Storage)
 - **Data Generation:** Faker Library
-- **Environment:** Docker, Java 17
+- **Environment:** Docker, Java 21, Hadoop Winutils (Windows Fix)
 
-##  Tiến độ
+## Tiến độ
 ### Tuần 1: Streaming Study & Prep
 - [x] Thiết lập hạ tầng Kafka & Zookeeper bằng Docker Compose.
 - [x] Phát triển script \`producer.py\` giả lập dữ liệu đơn hàng thời gian thực.
 - [x] Tìm hiểu mô hình **Unbounded Table** và **Windowing**.
 
 ### Tuần 2: Kafka Consumer Setup
-- [x] Tạo script \`kafka_consumer.py\` thay thế bản test cũ, cấu hình Schema chuẩn.
-- [x] Kiểm tra luồng dữ liệu (Pipeline basics): Producer -> Kafka -> Consumer.
-- [ ] Cấu hình Checkpoint cục bộ để quản lý Offset (Đang chờ tích hợp MinIO).
-- [ ] Hoàn thiện sơ đồ kiến trúc hệ thống (Streaming Architecture).
-
-## Kiến thức tìm hiểu
-- Mô hình **Unbounded Table** trong Structured Streaming.
-- Cơ chế **Event-time processing** và **Watermarking**.
-- Quản lý trạng thái và tính chịu lỗi với **Checkpointing**.
+- [x] **Create kafka_consumer.py:** Đọc dữ liệu từ Kafka topic \`orders_topic\`, parse JSON và định nghĩa Schema chuẩn. Viết kết quả ra Console để kiểm thử.
+- [x] **Test streaming pipeline basics:** Sử dụng bộ sinh dữ liệu giả lập, xác nhận Spark đọc thành công từ Kafka và kiểm tra cơ chế quản lý offset.
+- [x] **Create checkpoint directory:** Thiết lập vị trí lưu trữ checkpoint trên **MinIO** thông qua giao thức S3A. Đã kiểm tra khả năng phục hồi dữ liệu sau khi gặp sự cố.
+- [x] **Document streaming architecture:** Hoàn thiện sơ đồ luồng dữ liệu (Data flow diagram) và ánh xạ các Kafka topics trong hệ thống.
