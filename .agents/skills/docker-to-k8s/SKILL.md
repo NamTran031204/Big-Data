@@ -61,19 +61,19 @@ The goal is to avoid re-generating everything on every run. We track the last pr
 
 Scan the project root and the `init/` directory. Map each recognized directory/service to a K8s component:
 
-| Source Directory / Docker Service | K8s Component Name | K8s Workload Type | Notes |
-|---|---|---|---|
-| `init/docker-compose.yml` → `postgres` service | `infrastructure/postgres/` | StatefulSet | Needs PVC, WAL config |
-| `init/docker-compose.yml` → `kafka` + `zookeeper` | `infrastructure/kafka/` | StatefulSet | Both zk and broker |
-| `init/docker-compose.yml` → `mongodb` | `infrastructure/mongodb/` | StatefulSet | Needs PVC |
-| `init/docker-compose.yml` → `minio` | `infrastructure/minio/` | Deployment | healthcheck → readinessProbe |
-| `init/docker-compose.yml` → `debezium-connect` | `pipeline/debezium/` | Deployment | Needs both networks |
-| `services/spark-streaming/` | `pipeline/spark/` | Deployment | Runs 24/7, restartPolicy Always |
-| Spark batch scripts | `pipeline/spark/` | Job | Triggered by Airflow |
-| `SpringBoot/` | `services/java-service/` | Deployment | Spring Boot API |
-| Airflow (if present) | `pipeline/airflow/` | Deployment | Scheduler + webserver |
-| Prometheus (if present) | `monitoring/prometheus/` | Deployment | Scrape configs via ConfigMap |
-| Grafana (if present) | `monitoring/grafana/` | Deployment | Dashboards |
+| Source Directory / Docker Service                 | K8s Component Name         | K8s Workload Type | Notes                           |
+|---------------------------------------------------|----------------------------|-------------------|---------------------------------|
+| `init/docker-compose.yml` → `postgres` service    | `infrastructure/postgres/` | StatefulSet       | Needs PVC, WAL config           |
+| `init/docker-compose.yml` → `kafka` + `zookeeper` | `infrastructure/kafka/`    | StatefulSet       | Both zk and broker              |
+| `init/docker-compose.yml` → `mongodb`             | `infrastructure/mongodb/`  | StatefulSet       | Needs PVC                       |
+| `init/docker-compose.yml` → `minio`               | `infrastructure/minio/`    | Deployment        | healthcheck → readinessProbe    |
+| `init/docker-compose.yml` → `debezium-connect`    | `pipeline/debezium/`       | Deployment        | Needs both networks             |
+| `spark-streaming/`                                | `pipeline/spark/`          | Deployment        | Runs 24/7, restartPolicy Always |
+| `spark-batch/`                                    | `pipeline/spark/`          | Job               | Triggered by Airflow            |
+| `SpringBoot/`                                     | `services/java-service/`   | Deployment        | Spring Boot API                 |
+| `airflow` (if present)                            | `pipeline/airflow/`        | Deployment        | Scheduler + webserver           |
+| `prometheus` (if present)                         | `monitoring/prometheus/`   | Deployment        | Scrape configs via ConfigMap    |
+| `grafana` (if present)                            | `monitoring/grafana/`      | Deployment        | Dashboards                      |
 
 For each component, generate the following files inside `k8s/<component-path>/`:
 - `deployment.yaml` (or `statefulset.yaml` for stateful services)
