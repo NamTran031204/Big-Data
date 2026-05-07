@@ -3,3 +3,7 @@ __pycache__/
 .ipynb_checkpoints/
 *.pyc
 C:/temp/checkpoint/
+.idea
+data/external
+
+init/data/minio/.minio.sys

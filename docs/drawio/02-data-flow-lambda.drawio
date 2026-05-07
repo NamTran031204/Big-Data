@@ -1,0 +1,137 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="data-flow-lambda" name="Data Flow Diagram LR">
+    <mxGraphModel dx="1348" dy="920" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="10" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Ingestion &amp; Messaging" vertex="1">
+          <mxGeometry height="220" width="560" x="40" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="PostgreSQL (OLTP) : Nguồn giao dịch gốc." vertex="1">
+          <mxGeometry height="60" width="160" x="47" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Debezium CDC : Bắt thay đổi dữ liệu." vertex="1">
+          <mxGeometry height="60" width="160" x="47" y="143" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Apache Kafka : Bus sự kiện dữ liệu." vertex="1">
+          <mxGeometry height="60" width="140" x="260" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="20" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Streaming Branch (Lambda Speed Layer)" vertex="1">
+          <mxGeometry height="230" width="760" x="640" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="21" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Spark Structured Streaming : Xử lý luồng thời gian thực." vertex="1">
+          <mxGeometry height="60" width="210" x="71" y="146" as="geometry" />
+        </mxCell>
+        <mxCell id="22" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Window/Watermark Processor : Tổng hợp theo cửa sổ &amp; xử lý trễ." vertex="1">
+          <mxGeometry height="60" width="230" x="261" y="13" as="geometry" />
+        </mxCell>
+        <mxCell id="23" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="MinIO (Realtime) : Lưu sink luồng trực tiếp." vertex="1">
+          <mxGeometry height="60" width="220" x="519" y="116" as="geometry" />
+        </mxCell>
+        <mxCell id="30" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Batch Branch (Lambda Batch Layer)" vertex="1">
+          <mxGeometry height="260" width="760" x="640" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="31" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="MinIO Bronze : Lưu dữ liệu thô từ Kafka." vertex="1">
+          <mxGeometry height="60" width="160" x="81" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="32" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="Spark Batch : Xử lý lịch sử." vertex="1">
+          <mxGeometry height="60" width="160" x="81" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="33" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="MinIO Silver : Dữ liệu sạch &amp; chuẩn hóa." vertex="1">
+          <mxGeometry height="60" width="160" x="315" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="34" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="MinIO Gold : Dữ liệu tổng hợp sẵn sàng phục vụ." vertex="1">
+          <mxGeometry height="60" width="160" x="560" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="40" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Serving &amp; Presentation" vertex="1">
+          <mxGeometry height="300" width="520" x="1450" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="41" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="MongoDB : Lưu view hợp nhất cho truy vấn." vertex="1">
+          <mxGeometry height="60" width="220" x="47" y="76" as="geometry" />
+        </mxCell>
+        <mxCell id="42" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="Grafana Dashboards : Điểm cuối trực quan hóa dữ liệu." vertex="1">
+          <mxGeometry height="60" width="210" x="283" y="198" as="geometry" />
+        </mxCell>
+        <mxCell id="101" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="12" value="Capture Transaction Changes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="102" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="13" value="Publish CDC Events">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="355" y="353" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="103" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="21" value="Consume Stream Messages">
+          <mxGeometry relative="1" x="-0.3358" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="598" y="222" />
+              <mxPoint x="598" y="222" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="104" edge="1" parent="1" source="21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="22" value="Apply Window &amp; Watermark Logic">
+          <mxGeometry relative="1" x="-0.3364" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="787" y="83" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="105" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="41" value="Upsert Realtime Views">
+          <mxGeometry relative="1" x="-0.4226" y="-3" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1623" y="83" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="106" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="23" value="Write Direct Stream Sink (Parquet/Checkpoint)">
+          <mxGeometry relative="1" x="-0.5656" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1011" y="186" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="107" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="31" value="Write Raw Events to Bronze Layer">
+          <mxGeometry relative="1" x="-0.1646" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="430" y="351" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="108" edge="1" parent="1" source="31" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="32" value="Read Bronze Data for Batch Jobs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="109" edge="1" parent="1" source="32" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="33" value="Cleanse &amp; Transform to Silver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="110" edge="1" parent="1" source="33" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="34" value="Aggregate to Gold Layer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="111" edge="1" parent="1" source="34" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="41" value="Load Curated Gold Data to MongoDB">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="112" edge="1" parent="1" source="23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="41" value="Merge Realtime MinIO Output to Serving Views">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1186" y="247" />
+              <mxPoint x="1539" y="247" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="113" edge="1" parent="1" source="41" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;fontColor=#000000;" target="42" value="Query Metrics for Dashboards">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1646" y="308" />
+              <mxPoint x="1838" y="308" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

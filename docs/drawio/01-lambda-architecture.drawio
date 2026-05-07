@@ -1,0 +1,241 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="lambda-architecture" name="Lambda Architecture">
+    <mxGraphModel dx="2205" dy="1505" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="10" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Data Sources" vertex="1">
+          <mxGeometry height="460" width="380" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Olist CSV : Nguồn dữ liệu lịch sử ban đầu." vertex="1">
+          <mxGeometry height="52" width="340" x="37" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="PostgreSQL : OLTP Database lưu giao dịch bán hàng." vertex="1">
+          <mxGeometry height="52" width="340" x="37" y="191" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Debezium : CDC Connector đồng bộ thay đổi dữ liệu." vertex="1">
+          <mxGeometry height="52" width="340" x="37" y="287" as="geometry" />
+        </mxCell>
+        <mxCell id="14" parent="10" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Apache Kafka : Message Queue truyền sự kiện thời gian thực." vertex="1">
+          <mxGeometry height="52" width="340" x="37" y="391" as="geometry" />
+        </mxCell>
+        <mxCell id="20" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Speed Layer (Real-time)" vertex="1">
+          <mxGeometry height="460" width="396" x="450" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="21" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Spark Structured Streaming : Xử lý real-time với window và watermark." vertex="1">
+          <mxGeometry height="60" width="274" x="107" y="52" as="geometry" />
+        </mxCell>
+        <mxCell id="22" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Real-time Aggregations : Tổng hợp tức thời cho dashboard." vertex="1">
+          <mxGeometry height="60" width="150" x="46" y="167" as="geometry" />
+        </mxCell>
+        <mxCell id="23" parent="20" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Spring Boot : Consumer service ghi dữ liệu real-time." vertex="1">
+          <mxGeometry height="60" width="340" x="46" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="30" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Batch Layer (Historical)" vertex="1">
+          <mxGeometry height="460" width="556" x="860" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="31" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="MinIO : Distributed Storage Bronze/Silver/Gold." vertex="1">
+          <mxGeometry height="58" width="263" x="226" y="7" as="geometry" />
+        </mxCell>
+        <mxCell id="32" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="PySpark Batch : Xử lý lịch sử và biến đổi phức tạp." vertex="1">
+          <mxGeometry height="58" width="291" x="43" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="33" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="Spark MLlib : Huấn luyện mô hình phân tích dự đoán." vertex="1">
+          <mxGeometry height="58" width="313" x="191" y="217" as="geometry" />
+        </mxCell>
+        <mxCell id="34" parent="30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="GraphFrames : Phân tích quan hệ đồ thị khách hàng-sản phẩm." vertex="1">
+          <mxGeometry height="58" width="230" x="67" y="343" as="geometry" />
+        </mxCell>
+        <mxCell id="40" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Serving &amp; Presentation Layer" vertex="1">
+          <mxGeometry height="460" width="540" x="1430" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="41" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="MongoDB Atlas : NoSQL Database lưu trữ pre-computed views." vertex="1">
+          <mxGeometry height="60" width="341" x="86" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="42" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="dbt : Quản lý biến đổi dữ liệu phục vụ truy vấn." vertex="1">
+          <mxGeometry height="60" width="207" x="330" y="236" as="geometry" />
+        </mxCell>
+        <mxCell id="43" parent="40" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="Grafana : Dashboard trực quan hóa chỉ số thời gian thực." vertex="1">
+          <mxGeometry height="60" width="384" x="86" y="317" as="geometry" />
+        </mxCell>
+        <mxCell id="50" parent="1" style="swimlane;horizontal=0;startSize=34;rounded=1;container=1;collapsible=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=#6c757d;fontStyle=1;fontColor=#000000;" value="Orchestration &amp; Infrastructure" vertex="1">
+          <mxGeometry height="260" width="1930" x="40" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="51" parent="50" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Apache Airflow : Orchestrator điều phối DAG batch/stream." vertex="1">
+          <mxGeometry height="70" width="760" x="90" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="52" parent="50" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Kubernetes (Minikube) : Nền tảng triển khai và vận hành dịch vụ." vertex="1">
+          <mxGeometry height="70" width="760" x="1080" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="101" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="13" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="102" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="14" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="103" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="31" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="230" y="77" />
+              <mxPoint x="1130" y="77" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="104" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="21" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="701" y="457" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="105" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="23" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="528" y="457" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="106" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="31" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1206" y="468" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="107" edge="1" parent="1" source="31" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="32" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1157" y="122" />
+              <mxPoint x="1157" y="122" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="108" edge="1" parent="1" source="21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;exitX=0.139;exitY=0.995;exitDx=0;exitDy=0;exitPerimeter=0;" target="22" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="596" y="152" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="109" edge="1" parent="1" source="22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="41" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1611" y="237" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="110" edge="1" parent="1" source="23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="41" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1692" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="111" edge="1" parent="1" source="32" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="33" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1101" y="216" />
+              <mxPoint x="1101" y="216" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="112" edge="1" parent="1" source="32" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="34" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1014" y="295" />
+              <mxPoint x="1014" y="295" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="113" edge="1" parent="1" source="33" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="41" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1648" y="277" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="114" edge="1" parent="1" source="34" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="41" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1482" y="428" />
+              <mxPoint x="1482" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="115" edge="1" parent="1" source="41" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="42" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1795" y="225" />
+              <mxPoint x="1795" y="225" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="116" edge="1" parent="1" source="42" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" target="43" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1764" y="283" />
+              <mxPoint x="1764" y="283" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="117" edge="1" parent="1" source="51" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="21" value="Orchestrates">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="400" />
+              <mxPoint x="653" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="118" edge="1" parent="1" source="51" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="32" value="Orchestrates">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="914" y="655" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="119" edge="1" parent="1" source="51" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="42" value="Orchestrates">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="709" />
+              <mxPoint x="1921" y="709" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="120" edge="1" parent="1" source="52" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="13" value="Runs on">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1500" y="732" />
+              <mxPoint x="109" y="732" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="121" edge="1" parent="1" source="52" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="21" value="Runs on">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1237" y="579" />
+              <mxPoint x="737" y="579" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="122" edge="1" parent="1" source="52" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="32" value="Runs on">
+          <mxGeometry relative="1" x="-0.4905" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1182" y="509" />
+              <mxPoint x="1182" y="509" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="123" edge="1" parent="1" source="52" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#9673a6;endArrow=open;fontColor=#000000;" target="43" value="Runs on">
+          <mxGeometry relative="1" x="-0.5538" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1731" y="487" />
+              <mxPoint x="1731" y="487" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
