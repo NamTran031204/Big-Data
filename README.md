@@ -15,3 +15,4 @@
 * `SpringBoot/`        
 * `airflow` (if present)   
 * `prometheus` (if present)   
+* `grafana` (if present) 
