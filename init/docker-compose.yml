@@ -323,7 +323,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ./data/minio
+      device: ../minio-data
   mongodb_data:
   airflow-postgres-db-volume:
 
