@@ -7,3 +7,6 @@ C:/temp/checkpoint/
 data/external
 
 init/data/minio/.minio.sys
+
+airflow/logs/dag_processor_manager
+airflow/logs/scheduler
