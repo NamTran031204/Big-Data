@@ -44,6 +44,33 @@ services:
     volumes:
       - mongodb_data:/data/db
 
+  postgres:
+    image: postgres:16
+    container_name: bigdata-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: olist
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kafka-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_USER}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    networks:
+      - kafka-network
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: kafka-zookeeper
@@ -325,6 +352,7 @@ volumes:
       o: bind
       device: ../minio-data
   mongodb_data:
+  postgres_data:
   airflow-postgres-db-volume:
 
 networks:
