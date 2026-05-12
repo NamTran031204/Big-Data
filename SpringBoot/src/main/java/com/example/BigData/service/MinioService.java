@@ -16,7 +16,7 @@ public class MinioService {
     @Autowired
     private MinioClient minioClient;
 
-    @Value("${spring.minio.bucket}")
+    @Value("${minio.bucket}")
     private String defaultBucket;
 
     /**

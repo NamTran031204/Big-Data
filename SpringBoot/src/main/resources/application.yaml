@@ -1,9 +1,9 @@
 spring:
   # 1. Setup PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5432/olist_db
-    username: admin
-    password: password123
+    url: jdbc:postgresql://localhost:5432/olist
+    username: postgres
+    password: postgres
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -15,6 +15,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+        jdbc:
+          time_zone: UTC
+
+  jackson:
+    time_zone: UTC
   # 2. Setup MongoDB
   data:
     mongodb:
@@ -29,12 +34,17 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
+      acks: all
+      retries: 3
+
+      properties:
+        enable.idempotence: true
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 # 4.Setup Server
 server:
-  port: 8081
+  port: 8082
 
 # 5. SetupLogging
 logging:
