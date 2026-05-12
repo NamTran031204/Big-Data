@@ -54,10 +54,16 @@ public class KafkaProducerService {
     // Send object as JSON
     public void sendObject(String topic, String key, Object payload) {
         try {
-            String json = objectMapper.writeValueAsString(payload);
+
+            ObjectMapper mapper = new ObjectMapper(new com.fasterxml.jackson.core.JsonFactory());
+
+            String json = mapper.writeValueAsString(payload);
+
+            System.out.println("DEBUG - CHUỖI JSON GỬI ĐI: " + json);
+
             sendMessageWithKey(topic, key, json);
         } catch (Exception e) {
-            log.error("❌ Failed to serialize object: {}", e.getMessage());
+            log.error("❌ Lỗi Serialize: {}", e.getMessage());
         }
     }
 }

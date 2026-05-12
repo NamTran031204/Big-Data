@@ -1,53 +1,55 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.utils.dates import days_ago
-from datetime import timedelta
 import sys
 import os
+from datetime import datetime, timedelta
 
-sys.path.append('/opt/airflow/scripts')
-
-from ingest_bronze import run_full_ingestion 
-from generate_report import run_quality_check
-
-def on_failure_callback(context):
+scripts_path = '/opt/airflow/scripts'
+if scripts_path not in sys.path:
+    sys.path.append(scripts_path)
     
-    exception = context.get('exception')
-    task_id = context.get('task_instance').task_id
-    print(f"❌ Task {task_id} failed! Error: {exception}")
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+from ingest_csv_to_bronze import process_table 
+from ingest_kafka_to_bronze import ingest_kafka
+from transform_bronze_to_silver import process_to_silver
+from transform_silver_to_gold import create_gold_metrics
 
 default_args = {
     'owner': 'Duy Quang',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 2,                        # Thử lại 2 lần nếu lỗi
-    'retry_delay': timedelta(minutes=5), # Đợi 5 phút trước khi thử lại
-    'on_failure_callback': on_failure_callback
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
 }
 
-
 with DAG(
-    'olist_batch_ingestion',
+    'olist_medallion_pipeline',
     default_args=default_args,
-    description='Pipeline nạp dữ liệu Olist từ CSV sang Bronze Layer (MinIO)',
-    schedule_interval='@daily',          # Chạy hàng ngày vào lúc 00:00
-    start_date=days_ago(1),
-    catchup=False,                       # Không chạy bù các ngày trong quá khứ
-    tags=['bigdata', 'olist', 'bronze'],
+    start_date=datetime(2026, 4, 21),
+    schedule_interval='@daily',
+    catchup=False
 ) as dag:
 
-    # Task 1: Nạp dữ liệu vào Bronze
-    ingest_task = PythonOperator(
+    # 1. Nạp Bronze (Chạy song song)
+    task_ingest_csv = PythonOperator(
         task_id='ingest_csv_to_bronze',
-        python_callable=run_full_ingestion,
+        python_callable=process_table # Lưu ý: Cần viết hàm wrapper để chạy hết list jobs
     )
 
-    # Task 2: Kiểm tra chất lượng dữ liệu và tạo Report
-    quality_check_task = PythonOperator(
-        task_id='data_quality_profiling',
-        python_callable=run_quality_check,
+    task_ingest_kafka = PythonOperator(
+        task_id='ingest_kafka_to_bronze',
+        python_callable=ingest_kafka
     )
 
-    # Thiết lập thứ tự chạy: Ingest xong mới Check Quality
-    ingest_task >> quality_check_task
+    # 2. Chuyển sang Silver
+    task_silver = PythonOperator(
+        task_id='transform_bronze_to_silver',
+        python_callable=process_to_silver
+    )
+
+    # 3. Chuyển sang Gold
+    task_gold = PythonOperator(
+        task_id='transform_silver_to_gold',
+        python_callable=create_gold_metrics
+    )
+
+    # Thứ tự thực hiện
+    [task_ingest_csv, task_ingest_kafka] >> task_silver >> task_gold
