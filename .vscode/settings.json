@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
     "python.defaultInterpreterPath": "C:\\Users\\Admin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\python.exe",
     "sqltools.connections": [
         {
@@ -16,3 +17,21 @@
     "java.configuration.updateBuildConfiguration": "interactive",
     "java.compile.nullAnalysis.mode": "automatic"
 }
+=======
+  "sqltools.connections": [
+    {
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 5432,
+      "driver": "PostgreSQL",
+      "name": "Postgres-Source",
+      "database": "sales_db",
+      "username": "user",
+      "password": "password"
+    }
+  ],
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.updateBuildConfiguration": "interactive"
+}
+>>>>>>> 8317f0299da9174784a416cc5efc72e9b9870f2a

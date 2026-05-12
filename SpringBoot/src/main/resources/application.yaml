@@ -52,5 +52,9 @@ minio:
   url: http://localhost:9000
   access-key: admin
   secret-key: password123
+<<<<<<< HEAD
   buckets:
     bronze: bronze-zone
+=======
+  bucket: olist-lakehouse
+>>>>>>> 8317f0299da9174784a416cc5efc72e9b9870f2a
