@@ -1,5 +1,7 @@
 package com.example.BigData.kafka.producer;
 
+import com.example.BigData.entity.kafka.OrderEvent;
+import com.example.BigData.entity.kafka.base.BaseEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,10 +9,9 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.UUID;
 
-@Component
+//@Component
 public class KafkaTestProducer implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaTestProducer.class);
@@ -22,29 +23,22 @@ public class KafkaTestProducer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         log.info("🚀 Starting Kafka Producer Test...");
 
-        // Test 1: Send simple messages
-        for (int i = 1; i <= 5; i++) {
-            String message = "Test message #" + i + " at " + LocalDateTime.now();
-            producerService.sendMessage("test-topic", message);
-            Thread.sleep(500); // delay 500ms between messages
-        }
+        // 1. Tạo một đơn hàng giả (Mock Data) chuẩn theo form OrderEvent
+        OrderEvent mockEvent = new OrderEvent();
+        mockEvent.setEventId(UUID.randomUUID().toString());
+        mockEvent.setEventType("TEST_ORDER");
+        mockEvent.setOrderId("ORD-TEST-999");
+        mockEvent.setCustomerId("CUST-PRO-VIP");
+        mockEvent.setOrderStatus("delivered");
+        mockEvent.setEventTimestamp(LocalDateTime.now().toString());
 
-        // Test 2: Send messages with key
-        String[] keys = {"user-1", "user-2", "user-3"};
-        for (String key : keys) {
-            producerService.sendMessageWithKey("test-topic", key,
-                    "Hello from " + key + " at " + LocalDateTime.now());
-        }
+        // 2. Test bắn bằng vòi xịt JSON
+        log.info("▶️ Đang test bắn dữ liệu JSON...");
+        producerService.sendOrderEvent("test_orders", mockEvent.getOrderId(), mockEvent, BaseEvent.SerializationFormat.JSON);
 
-        // Test 3: Send JSON object
-        Map<String, Object> orderEvent = new HashMap<>();
-        orderEvent.put("orderId", "ORD-001");
-        orderEvent.put("userId", "USR-123");
-        orderEvent.put("amount", 99.99);
-        orderEvent.put("status", "CREATED");
-        orderEvent.put("timestamp", LocalDateTime.now().toString());
-
-        producerService.sendObject("orders-topic", "ORD-001", orderEvent);
+        // 3. Test bắn bằng vòi xịt PARQUET
+        log.info("▶️ Đang test bắn dữ liệu PARQUET...");
+        producerService.sendOrderEvent("test_orders", mockEvent.getOrderId(), mockEvent, BaseEvent.SerializationFormat.PARQUET);
 
         log.info("✅ Kafka Producer Test completed!");
     }

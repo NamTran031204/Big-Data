@@ -16,7 +16,7 @@ public class OlistCdcConsumer {
     private final ObjectMapper objectMapper;
     private final OrderSyncService orderSyncService;
 
-    @KafkaListener(topics = "olist_cdc.olist.olist_orders", groupId = "olist-group")
+    @KafkaListener(topics = "olist_cdc.public.olist_orders", groupId = "olist-group")
     public void consumeOrderChanges(String message) {
         try {
             // 1. Chuyển chuỗi JSON thô thành đối tượng CdcEvent
