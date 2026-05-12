@@ -16,7 +16,7 @@ spark = SparkSession.builder \
 def process_table(table_key, csv_name, partition_col=None):
     print(f"--- Processing CSV: {table_key} ---")
     input_path = f"../data/external/{csv_name}"
-    output_path = f"s3a://olist-bronze/{table_key}/"
+    output_path = f"s3a://bronze-zone/{table_key}/"
     
     df = spark.read.csv(input_path, header=True, schema=TABLE_SCHEMAS.get(table_key))
     df = df.dropDuplicates()

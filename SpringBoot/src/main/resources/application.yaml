@@ -15,9 +15,8 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   # 2. Setup MongoDB
-  data:
-    mongodb:
-      uri: mongodb://127.0.0.1:27017/olist_db
+  mongodb:
+    uri: mongodb://127.0.0.1:27017/olist_db
 
   # 3. Setup Kafka
   kafka:
@@ -30,6 +29,12 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  minio:
+    url: http://localhost:9000
+    access-key: admin
+    secret-key: password123
+    buckets:
+      bronze: bronze-zone
 
 # 4.Setup Server
 server:
@@ -39,22 +44,11 @@ server:
 logging:
   level:
     root: INFO
-    org.springframework.data.mongodb: DEBUG
-    org.springframework.kafka: INFO
-
+    "[org.springframework.data.mongodb]": DEBUG
+    "[org.springframework.kafka]": INFO
 eureka:
   client:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
 
-minio:
-  url: http://localhost:9000
-  access-key: admin
-  secret-key: password123
-<<<<<<< HEAD
-  buckets:
-    bronze: bronze-zone
-=======
-  bucket: olist-lakehouse
->>>>>>> 8317f0299da9174784a416cc5efc72e9b9870f2a
