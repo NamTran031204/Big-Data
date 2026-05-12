@@ -1,4 +1,16 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+C:/temp/checkpoint/
 .idea
-data/external
+logs/
+data/external/
+data/raw/
+data/processed/
+.env
 
 init/data/minio/.minio.sys
+
+airflow/logs/dag_processor_manager
+airflow/logs/scheduler
