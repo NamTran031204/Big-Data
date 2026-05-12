@@ -15,5 +15,4 @@ public class BigDataApplication {
 //		System.out.println(TimeZone.getDefault());
 		SpringApplication.run(BigDataApplication.class, args);
 	}
-
 }

@@ -1,9 +1,8 @@
 spring:
-  # 1. Setup PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5432/olist
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://localhost:5432/olist_db
+    username: admin
+    password: password123
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -21,9 +20,8 @@ spring:
   jackson:
     time_zone: UTC
   # 2. Setup MongoDB
-  data:
-    mongodb:
-      uri: mongodb://127.0.0.1:27017/olist_db
+  mongodb:
+    uri: mongodb://127.0.0.1:27017/olist_db
 
   # 3. Setup Kafka
   kafka:
@@ -40,7 +38,7 @@ spring:
       properties:
         enable.idempotence: true
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 # 4.Setup Server
 server:
@@ -50,17 +48,11 @@ server:
 logging:
   level:
     root: INFO
-    org.springframework.data.mongodb: DEBUG
-    org.springframework.kafka: INFO
-
+    "[org.springframework.data.mongodb]": DEBUG
+    "[org.springframework.kafka]": INFO
 eureka:
   client:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
 
-minio:
-  url: http://localhost:9000
-  access-key: admin
-  secret-key: password123
-  bucket: olist-lakehouse
