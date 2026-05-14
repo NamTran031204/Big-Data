@@ -1,8 +1,16 @@
 package com.example.BigData.kafka.producer;
 
+import com.example.BigData.entity.kafka.OrderEvent;
+import com.example.BigData.entity.kafka.base.BaseEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Logger;
+
+import com.example.BigData.util.ParquetConverter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import org.apache.log4j.spi.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -11,6 +19,8 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.CompletableFuture;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class KafkaProducerService {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaProducerService.class);

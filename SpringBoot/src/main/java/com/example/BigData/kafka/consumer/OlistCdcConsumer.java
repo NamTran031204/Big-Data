@@ -18,7 +18,7 @@ public class OlistCdcConsumer {
     private final OrderSyncService orderSyncService;
     private final MinioService minioService; // 
 
-    @KafkaListener(topics = "olist_cdc.olist.olist_orders", groupId = "olist-group")
+    @KafkaListener(topics = "olist_cdc.public.olist_orders", groupId = "olist-group")
     public void consumeOrderChanges(String message) {
         String timestamp = String.valueOf(System.currentTimeMillis());
         try {

@@ -68,19 +68,33 @@ public class ReferenceDataService {
                                 .nextInt(productCache.size())
                 );
 
+        String eventType = randomEventType();
+
+        String category = product.getProductCategoryName();
+
+        String searchTerm = null;
+
+        if ("search".equals(eventType) && category != null) {
+
+            searchTerm = category.contains("_")
+                    ? category.substring(0, category.indexOf("_"))
+                    : category;
+        }
+
         UserBehaviorEvent event =
                 UserBehaviorEvent.builder()
                         .eventId(UUID.randomUUID().toString())
-                        .eventType(randomEventType())
+                        .eventType(eventType)
                         .eventTime(Instant.now())
                         .userId(customer.getCustomerId())
                         .sessionId(UUID.randomUUID().toString())
                         .productId(product.getProductId())
-                        .category(product.getProductCategoryName())
+                        .category(category)
                         .dwellTimeMs(
                                 ThreadLocalRandom.current()
                                         .nextLong(1000, 20000)
                         )
+                        .searchTerm(searchTerm)
                         .build();
 
         kafkaTemplate.send(

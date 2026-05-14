@@ -1,7 +1,9 @@
 package com.example.BigData;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.TimeZone;
@@ -11,8 +13,14 @@ import java.util.TimeZone;
 public class BigDataApplication {
 
 	public static void main(String[] args) {
+		// Thiết lập múi giờ mặc định cho toàn bộ ứng dụng
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
-//		System.out.println(TimeZone.getDefault());
 		SpringApplication.run(BigDataApplication.class, args);
+	}
+
+	// Bean dùng để ép kiểu Object sang JSON (Của nhánh bạn làm)
+	@Bean
+	public ObjectMapper objectMapper() {
+		return new ObjectMapper();
 	}
 }
