@@ -9,6 +9,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 //@Component
@@ -23,22 +25,31 @@ public class KafkaTestProducer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         log.info("🚀 Starting Kafka Producer Test...");
 
-        // 1. Tạo một đơn hàng giả (Mock Data) chuẩn theo form OrderEvent
-        OrderEvent mockEvent = new OrderEvent();
-        mockEvent.setEventId(UUID.randomUUID().toString());
-        mockEvent.setEventType("TEST_ORDER");
-        mockEvent.setOrderId("ORD-TEST-999");
-        mockEvent.setCustomerId("CUST-PRO-VIP");
-        mockEvent.setOrderStatus("delivered");
-        mockEvent.setEventTimestamp(LocalDateTime.now().toString());
+        // Test 1: Send simple messages
+        // for (int i = 1; i <= 5; i++) {
+        // String message = "Test message #" + i + " at " + LocalDateTime.now();
+        // producerService.sendMessage("test-topic", message);
+        // Thread.sleep(500); // delay 500ms between messages
+        // }
 
-        // 2. Test bắn bằng vòi xịt JSON
-        log.info("▶️ Đang test bắn dữ liệu JSON...");
-        producerService.sendOrderEvent("test_orders", mockEvent.getOrderId(), mockEvent, BaseEvent.SerializationFormat.JSON);
+        // Test 2: Send messages with key
+        // String[] keys = {"user-1", "user-2", "user-3"};
+        // for (String key : keys) {
+        // producerService.sendMessageWithKey("test-topic", key,
+        // "Hello from " + key + " at " + LocalDateTime.now());
+        // }
 
-        // 3. Test bắn bằng vòi xịt PARQUET
-        log.info("▶️ Đang test bắn dữ liệu PARQUET...");
-        producerService.sendOrderEvent("test_orders", mockEvent.getOrderId(), mockEvent, BaseEvent.SerializationFormat.PARQUET);
+        // Test 3: Send JSON object
+        Map<String, Object> orderEvent = new HashMap<>();
+        // Lưu ý: Nếu Python tìm "order_id", hãy đặt key là "order_id" ở đây luôn cho
+        // đồng bộ
+        orderEvent.put("order_id", "ORD-001");
+        orderEvent.put("customer_id", "USR-123");
+        orderEvent.put("amount", 99.99);
+        orderEvent.put("order_status", "CREATED");
+        orderEvent.put("order_purchase_timestamp", LocalDateTime.now().toString());
+
+        producerService.sendObject("orders-topic", "ORD-001", orderEvent);
 
         log.info("✅ Kafka Producer Test completed!");
     }

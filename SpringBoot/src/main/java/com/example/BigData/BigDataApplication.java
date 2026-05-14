@@ -12,15 +12,15 @@ import java.util.TimeZone;
 @SpringBootApplication
 public class BigDataApplication {
 
-    public static void main(String[] args) {
-        // Thiết lập múi giờ mặc định cho toàn bộ ứng dụng
-        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
-        SpringApplication.run(BigDataApplication.class, args);
-    }
+	public static void main(String[] args) {
+		// Thiết lập múi giờ mặc định cho toàn bộ ứng dụng
+		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+		SpringApplication.run(BigDataApplication.class, args);
+	}
 
-    // Bean dùng để ép kiểu Object sang JSON (Của nhánh bạn làm)
-    @Bean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper();
-    }
+	// Bean dùng để ép kiểu Object sang JSON (Của nhánh bạn làm)
+	@Bean
+	public ObjectMapper objectMapper() {
+		return new ObjectMapper();
+	}
 }
