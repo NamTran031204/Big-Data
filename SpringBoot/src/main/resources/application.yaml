@@ -1,9 +1,9 @@
 spring:
   # 1. Setup PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5432/olist
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://100.126.251.93:5432/olist_db
+    username: dongthe04
+    password: "123456"
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -15,38 +15,36 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-        jdbc:
-          time_zone: UTC
-
-  jackson:
-    time_zone: UTC
   # 2. Setup MongoDB
   data:
     mongodb:
-      uri: mongodb://127.0.0.1:27017/olist_db
+      uri: mongodb://localhost:27017/bigdata_db
 
   # 3. Setup Kafka
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: 100.126.251.93:9092
     consumer:
       group-id: olist-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
     producer:
-      acks: all
-      retries: 3
-
-      properties:
-        enable.idempotence: true
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
 
-# 4.Setup Server
+# ĐƯA MINIO RA NGOÀI CÙNG NHƯ THẾ NÀY
+minio:
+  # Dùng port 9000 để code giao tiếp.
+  url: http://100.126.251.93:9000
+  access-key: admin
+  secret-key: password123
+  bucket: olist-lakehouse
+
+# 4. Setup Server
 server:
-  port: 8082
+  port: 8081
 
-# 5. SetupLogging
+# 5. Setup Logging
 logging:
   level:
     root: INFO
@@ -58,9 +56,3 @@ eureka:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
-
-minio:
-  url: http://localhost:9000
-  access-key: admin
-  secret-key: password123
-  bucket: olist-lakehouse

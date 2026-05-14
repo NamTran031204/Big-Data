@@ -18,5 +18,5 @@ public class OrderEvent extends BaseEvent {
     private String customerId;
     private String orderStatus;
     private String eventTimestamp;
-//    private Map<String, Object> payload;
+    private byte[] payload;
 }
