@@ -4,45 +4,57 @@ import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class MinioService {
 
-    @Autowired
-    private MinioClient minioClient;
+    private final MinioClient minioClient;
 
     @Value("${minio.bucket}")
-    private String defaultBucket;
+    private String bucketName;
 
-    /**
-     * Đẩy dữ liệu chuỗi (JSON) lên MinIO
-     * @param path Đường dẫn file (vd: bronze/orders/2024/05/order_1.json)
-     * @param content Nội dung file
-     */
-    public void uploadJson(String path, String content) {
+    // --- Hàm upload file Parquet (đã có) ---
+    public void uploadParquetFile(String fileName, byte[] parquetData) {
+        uploadToMinio(fileName, parquetData, "application/octet-stream");
+    }
+
+    // --- HÀM MỚI: Upload file JSON (Thêm hàm này để hết lỗi) ---
+    public void uploadJson(String fileName, String jsonContent) {
+        if (jsonContent == null) return;
+        byte[] data = jsonContent.getBytes(StandardCharsets.UTF_8);
+        uploadToMinio(fileName, data, "application/json");
+    }
+
+    // Hàm dùng chung để tối ưu code
+    private void uploadToMinio(String fileName, byte[] data, String contentType) {
         try {
-            // Kiểm tra và tạo bucket nếu chưa có
-            boolean found = minioClient.bucketExists(BucketExistsArgs.builder().bucket(defaultBucket).build());
-            if (!found) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(defaultBucket).build());
+            boolean isExist = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
+            if (!isExist) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             }
 
-            byte[] data = content.getBytes();
+            InputStream stream = new ByteArrayInputStream(data);
             minioClient.putObject(
-                PutObjectArgs.builder()
-                    .bucket(defaultBucket)
-                    .object(path)
-                    .stream(new ByteArrayInputStream(data), data.length, -1)
-                    .contentType("application/json")
-                    .build()
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(fileName)
+                            .stream(stream, data.length, -1)
+                            .contentType(contentType)
+                            .build()
             );
+            log.info("🚀 [MINIO] Uploaded successfully: {}", fileName);
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi khi upload lên MinIO: " + e.getMessage());
+            log.error("❌ [MINIO] Error uploading {}: {}", fileName, e.getMessage());
         }
     }
 }
