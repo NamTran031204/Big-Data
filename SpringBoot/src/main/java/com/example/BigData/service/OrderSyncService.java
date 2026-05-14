@@ -5,6 +5,9 @@ import com.example.BigData.entity.mongodb.OrderAnalyticsDocument;
 import com.example.BigData.entity.mongodb.OrderAnalyticsDocument.ItemSummary;
 import com.example.BigData.entity.postgres.OrderItemEntity;
 import com.example.BigData.entity.postgres.ProductEntity;
+import com.example.BigData.kafka.producer.KafkaProducerService;
+import com.example.BigData.entity.kafka.OrderEvent;
+import com.example.BigData.entity.kafka.base.BaseEvent;
 import com.example.BigData.repository.mongodb.OrderAnalyticsMongoRepository;
 import com.example.BigData.repository.postgres.CustomerJpaRepository;
 import com.example.BigData.repository.postgres.OrderItemJpaRepository;
@@ -19,6 +22,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
 public class OrderSyncService {
 
     private final OrderAnalyticsMongoRepository mongoRepository;
+    private final KafkaProducerService kafkaProducerService;
     private final CustomerJpaRepository customerRepository;
     private final OrderItemJpaRepository itemRepository;
 
@@ -34,9 +39,12 @@ public class OrderSyncService {
         if (cdcEvent.getPayload() == null) return;
 
         String op = cdcEvent.getPayload().getOp();
+        // Xác định lấy data từ after (tạo/sửa) hay before (xóa)
         Map<String, Object> data = ("d".equals(op)) 
                 ? cdcEvent.getPayload().getBefore().getFields() 
                 : cdcEvent.getPayload().getAfter().getFields();
+
+        if (data == null) return;
 
         String orderId = (String) data.get("order_id");
         if (orderId == null) return;
@@ -45,19 +53,27 @@ public class OrderSyncService {
             if ("d".equals(op)) {
                 mongoRepository.deleteById(orderId);
                 log.info("🗑️ [Gold] Đã xóa Order: {}", orderId);
+                
+                // Báo cho Kafka biết đơn hàng đã bị xóa
+                sendToKafka(orderId, data, "ORDER_DELETED");
                 return;
             }
-            handleSaveOrUpdate(orderId, data);
+            
+            // Xử lý làm giàu dữ liệu và lưu Mongo, sau đó bắn Kafka
+            handleSaveOrUpdate(orderId, data, op);
+            
         } catch (Exception e) {
-            log.error("❌ Lỗi xử lý Gold Layer cho Order {}: {}", orderId, e.getMessage());
+            log.error("❌ Lỗi xử lý Gold Layer / Kafka cho Order {}: {}", orderId, e.getMessage());
         }
     }
 
-    private void handleSaveOrUpdate(String orderId, Map<String, Object> data) {
+    private void handleSaveOrUpdate(String orderId, Map<String, Object> data, String op) {
         OrderAnalyticsDocument document = mongoRepository.findById(orderId)
                 .orElse(new OrderAnalyticsDocument());
 
+        // =========================================================
         // 1. Mapping thông tin cơ bản từ Kafka
+        // =========================================================
         document.setOrderId(orderId);
         document.setCustomerId((String) data.get("customer_id"));
         document.setOrderStatus((String) data.get("order_status"));
@@ -65,15 +81,14 @@ public class OrderSyncService {
         document.setDeliveredDate(convertMicroTimestamp(data.get("order_delivered_customer_date")));
         document.setEstimatedDeliveryDate(convertMicroTimestamp(data.get("order_estimated_delivery_date")));
 
+        // =========================================================
         // 2. DATA ENRICHMENT (Làm giàu dữ liệu từ Silver - PostgreSQL)
-        
-        // Làm giàu thông tin khách hàng
+        // =========================================================
         customerRepository.findById(document.getCustomerId()).ifPresent(c -> {
             document.setCustomerCity(c.getCity());
             document.setCustomerState(c.getState());
         });
 
-        // Làm giàu danh sách Items và thông tin Product (bao gồm Translation)
         List<OrderItemEntity> postgresItems = itemRepository.findByIdOrderId(orderId);
         
         List<ItemSummary> itemSummaries = postgresItems.stream().map(item -> {
@@ -85,10 +100,7 @@ public class OrderSyncService {
             summary.setPrice(item.getPrice());
             summary.setFreightValue(item.getFreightValue());
             
-            // Lấy tên Category gốc (Bồ Đào Nha) từ ProductEntity
             summary.setCategoryName(product.getProductCategoryName());
-            
-            // Lấy tên Category dịch (Anh) từ ProductCategoryTranslationEntity
             if (product.getCategoryTranslation() != null) {
                 summary.setCategoryNameEnglish(product.getCategoryTranslation().getProductCategoryNameEnglish());
             }
@@ -98,15 +110,14 @@ public class OrderSyncService {
 
         document.setItems(itemSummaries);
 
+        // =========================================================
         // 3. COMPUTED FIELDS (Tính toán chỉ số Analytics)
-        
-        // Tính độ trễ giao hàng
+        // =========================================================
         if (document.getDeliveredDate() != null && document.getEstimatedDeliveryDate() != null) {
             long delay = ChronoUnit.DAYS.between(document.getEstimatedDeliveryDate(), document.getDeliveredDate());
             document.setDeliveryDelayDays((int) delay);
         }
 
-        // Tính tổng giá trị đơn hàng (Price + Freight)
         BigDecimal totalValue = itemSummaries.stream()
                 .map(i -> i.getPrice().add(i.getFreightValue()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -114,11 +125,40 @@ public class OrderSyncService {
         document.setTotalItemValue(totalValue);
         document.setItemCount(itemSummaries.size());
 
+        // =========================================================
         // 4. Lưu vào Gold Layer (MongoDB)
+        // =========================================================
         mongoRepository.save(document);
         log.info("⭐ [Gold] Đã tổng hợp dữ liệu thành công cho Order: {}", orderId);
+
+        // =========================================================
+        // 5. Bắn Event lên Kafka (Đã hợp nhất từ nhánh HEAD)
+        // =========================================================
+        String eventType = "c".equals(op) ? "ORDER_CREATED" : "ORDER_UPDATED";
+        sendToKafka(orderId, data, eventType);
     }
 
+    // Hàm phụ trợ được tách ra cho sạch code
+    private void sendToKafka(String orderId, Map<String, Object> data, String eventType) {
+        try {
+            OrderEvent cleanEvent = new OrderEvent();
+            cleanEvent.setEventId(UUID.randomUUID().toString());
+            cleanEvent.setEventType(eventType);
+            cleanEvent.setOrderId(orderId);
+            cleanEvent.setCustomerId((String) data.get("customer_id"));
+            cleanEvent.setOrderStatus((String) data.get("order_status"));
+            cleanEvent.setEventTimestamp(LocalDateTime.now().toString());
+
+            String topic = "olist_orders"; 
+            kafkaProducerService.sendOrderEvent(topic, orderId, cleanEvent, BaseEvent.SerializationFormat.PARQUET);
+            kafkaProducerService.sendOrderEvent(topic, orderId, cleanEvent, BaseEvent.SerializationFormat.JSON);
+            
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi nén và đẩy Parquet cho Order {}: {}", orderId, e.getMessage());
+        }
+    }
+
+    // Sử dụng Object để xử lý linh hoạt timestamp
     private LocalDateTime convertMicroTimestamp(Object ts) {
         if (ts == null) return null;
         try {

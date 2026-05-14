@@ -1,9 +1,11 @@
 package com.example.BigData.kafka.producer;
 
+import com.example.BigData.entity.kafka.OrderEvent;
+import com.example.BigData.entity.kafka.base.BaseEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.BigData.util.ParquetConverter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
@@ -11,53 +13,57 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.CompletableFuture;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class KafkaProducerService {
 
-    private static final Logger log = LoggerFactory.getLogger(KafkaProducerService.class);
+    // Kéo 2 "vòi xịt" từ KafkaProducerConfig sang
+    private final KafkaTemplate<String, String> jsonKafkaTemplate;
+    private final KafkaTemplate<String, byte[]> byteKafkaTemplate;
 
-    @Autowired
-    private KafkaTemplate<String, String> kafkaTemplate;
+    private final ObjectMapper objectMapper;
+    private final ParquetConverter parquetConverter;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    // Hàm chính để gửi Event đa định dạng
+    public void sendOrderEvent(String topic, String key, OrderEvent event, BaseEvent.SerializationFormat format) {
+        if (format == BaseEvent.SerializationFormat.PARQUET) {
+            try {
+                // 1. Nếu là Parquet -> Gọi ParquetConverter -> Dùng byteKafkaTemplate
+                byte[] data = parquetConverter.convertToParquetBytes(event);
+                log.info("📦 Đang gửi dữ liệu định dạng PARQUET...");
 
-    // Send simple string message
-    public void sendMessage(String topic, String message) {
-        CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(topic, message);
-
-        future.whenComplete((result, ex) -> {
-            if (ex == null) {
-                log.info("✅ Sent message='{}' to topic='{}', partition={}, offset={}",
-                        message,
-                        result.getRecordMetadata().topic(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            } else {
-                log.error("❌ Failed to send message='{}' due to: {}", message, ex.getMessage());
+                CompletableFuture<SendResult<String, byte[]>> future = byteKafkaTemplate.send(topic, key, data);
+                future.whenComplete((result, ex) -> {
+                    if (ex == null) {
+                        log.info("✅ [PARQUET] Sent to topic='{}', partition={}, offset={}",
+                                result.getRecordMetadata().topic(), result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+                    } else {
+                        log.error("❌ [PARQUET] Failed with key='{}': {}", key, ex.getMessage());
+                    }
+                });
+            } catch (Exception e) {
+                log.error("❌ Lỗi nén Parquet: {}", e.getMessage());
             }
-        });
-    }
+        } else {
+            try {
+                // 2. Nếu là JSON -> Ép chuỗi -> Dùng jsonKafkaTemplate
+                String json = objectMapper.writeValueAsString(event);
+                log.info("📝 Đang gửi dữ liệu định dạng JSON...");
 
-    // Send message with key (for partitioning)
-    public void sendMessageWithKey(String topic, String key, String message) {
-        CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(topic, key, message);
-
-        future.whenComplete((result, ex) -> {
-            if (ex == null) {
-                log.info("✅ Sent key='{}' message='{}' to topic='{}'", key, message, topic);
-            } else {
-                log.error("❌ Failed to send message with key='{}': {}", key, ex.getMessage());
+                // Gắn thêm chữ "_json" vào đuôi topic để dễ phân biệt trên Kafka UI
+                String jsonTopic = topic + "_json";
+                CompletableFuture<SendResult<String, String>> future = jsonKafkaTemplate.send(jsonTopic, key, json);
+                future.whenComplete((result, ex) -> {
+                    if (ex == null) {
+                        log.info("✅ [JSON] Sent to topic='{}', partition={}, offset={}",
+                                result.getRecordMetadata().topic(), result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+                    } else {
+                        log.error("❌ [JSON] Failed with key='{}': {}", key, ex.getMessage());
+                    }
+                });
+            } catch (Exception e) {
+                log.error("❌ Lỗi ép JSON: {}", e.getMessage());
             }
-        });
-    }
-
-    // Send object as JSON
-    public void sendObject(String topic, String key, Object payload) {
-        try {
-            String json = objectMapper.writeValueAsString(payload);
-            sendMessageWithKey(topic, key, json);
-        } catch (Exception e) {
-            log.error("❌ Failed to serialize object: {}", e.getMessage());
         }
     }
 }
