@@ -4,41 +4,49 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, window, timestamp_seconds
 from pyspark.sql.types import StructType, StringType, IntegerType, DoubleType
 
-# 1. Fix lỗi Windows
-os.environ["HADOOP_HOME"] = "C:\\hadoop" 
+os.environ["HADOOP_HOME"] = "C:\\hadoop"
 os.environ["PATH"] += os.pathsep + "C:\\hadoop\\bin"
 os.environ['PYSPARK_PYTHON'] = sys.executable
 os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
 
-# 2. Khởi tạo SparkSession - THÊM THƯ VIỆN hadoop-aws
+# Thêm JAR: Kafka, Hadoop-AWS (MinIO), và PostgreSQL
 spark = SparkSession.builder \
-    .appName("KafkaConsumer_Week2_MinIO") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.8,org.apache.hadoop:hadoop-aws:3.3.4") \
+    .appName("KafkaConsumer_FullPipeline") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.8,org.apache.hadoop:hadoop-aws:3.3.4,org.postgresql:postgresql:42.7.2") \
     .config("spark.driver.host", "127.0.0.1") \
     .config("spark.driver.bindAddress", "127.0.0.1") \
     .getOrCreate()
 
-# --- CẤU HÌNH KẾT NỐI MINIO (S3A) ---
+# Cấu hình S3A cho MinIO
 hadoop_conf = spark._jsc.hadoopConfiguration()
 hadoop_conf.set("fs.s3a.endpoint", "http://localhost:9000")
 hadoop_conf.set("fs.s3a.access.key", "minioadmin")
 hadoop_conf.set("fs.s3a.secret.key", "minioadmin123")
 hadoop_conf.set("fs.s3a.path.style.access", "true")
 hadoop_conf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-hadoop_conf.set("fs.s3a.connection.ssl.enabled", "false") # MinIO chạy local không cần SSL
+hadoop_conf.set("fs.s3a.connection.ssl.enabled", "false")
 
 spark.sparkContext.setLogLevel("WARN")
 
-# 3. Định nghĩa cấu trúc dữ liệu
 schema = StructType() \
     .add("order_id", StringType()) \
     .add("user_id", IntegerType()) \
     .add("amount", DoubleType()) \
     .add("timestamp", DoubleType())
 
-print("🚀 Đang kết nối Spark với Kafka và MinIO...")
+# Hàm ghi dữ liệu vào Postgres (Sẽ kích hoạt khi có cấu hình chính thức từ nhóm)
+def write_to_postgres(batch_df, batch_id):
+    # batch_df.write \
+    #     .format("jdbc") \
+    #     .option("url", "jdbc:postgresql://localhost:5432/bigdata_db") \
+    #     .option("dbtable", "revenue_summary") \
+    #     .option("user", "myuser") \
+    #     .option("password", "mypassword") \
+    #     .option("driver", "org.postgresql.Driver") \
+    #     .mode("append") \
+    #     .save()
+    pass
 
-# 4. Đọc luồng dữ liệu từ Kafka
 df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "localhost:9092") \
@@ -46,25 +54,23 @@ df = spark.readStream \
     .option("startingOffsets", "earliest") \
     .load()
 
-# 5. Xử lý dữ liệu
 parsed_df = df.selectExpr("CAST(value AS STRING)") \
     .select(from_json(col("value"), schema).alias("data")) \
     .select("data.*") \
     .withColumn("event_time", timestamp_seconds(col("timestamp")))
 
-# 6. Window Operations
 revenue_by_window = parsed_df \
     .groupBy(window(col("event_time"), "10 seconds")) \
     .sum("amount") \
     .withColumnRenamed("sum(amount)", "total_revenue")
 
-# 7. Ghi kết quả - ĐỔI ĐƯỜNG DẪN SANG S3A
+# Tạm thời xuất Console và lưu Checkpoint lên MinIO
 query = revenue_by_window.writeStream \
     .outputMode("complete") \
+    .foreachBatch(write_to_postgres) \
     .format("console") \
     .option("truncate", "false") \
-    .option("checkpointLocation", "s3a://checkpoint/spark_job") \
+    .option("checkpointLocation", "s3a://checkpoint/spark_job_v2") \
     .start()
 
-print("✅ Hệ thống đang chạy. Kiểm tra Bucket 'checkpoint' trên MinIO để thấy dữ liệu!")
 query.awaitTermination()
