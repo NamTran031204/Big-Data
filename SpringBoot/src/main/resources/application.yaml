@@ -1,9 +1,8 @@
 spring:
-  # 1. Setup PostgreSQL
   datasource:
-    url: jdbc:postgresql://100.126.251.93:5432/olist_db
-    username: dongthe04
-    password: "123456"
+    url: jdbc:postgresql://localhost:5433/airflow 
+    username: airflow
+    password: airflow
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -16,41 +15,37 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   # 2. Setup MongoDB
-  data:
-    mongodb:
-      uri: mongodb://localhost:27017/bigdata_db
+  mongodb:
+    uri: mongodb://127.0.0.1:27017/olist_db
 
   # 3. Setup Kafka
   kafka:
-    bootstrap-servers: 100.126.251.93:9092
+    bootstrap-servers: localhost:9092
     consumer:
       group-id: olist-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  minio:
+    url: http://localhost:9000
+    access-key: admin
+    secret-key: password123
+    buckets:
+      bronze: bronze-zone
 
-# ĐƯA MINIO RA NGOÀI CÙNG NHƯ THẾ NÀY
-minio:
-  # Dùng port 9000 để code giao tiếp.
-  url: http://100.126.251.93:9000
-  access-key: admin
-  secret-key: password123
-  bucket: olist-lakehouse
-
-# 4. Setup Server
+# 4.Setup Server
 server:
   port: 8081
 
-# 5. Setup Logging
+# 5. SetupLogging
 logging:
   level:
     root: INFO
-    org.springframework.data.mongodb: DEBUG
-    org.springframework.kafka: INFO
-
+    "[org.springframework.data.mongodb]": DEBUG
+    "[org.springframework.kafka]": INFO
 eureka:
   client:
     enabled: false
