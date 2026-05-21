@@ -8,9 +8,9 @@ Bạn hãy nhìn lại trong `docker-compose.yml`, có một service tên là `m
       minio:
         condition: service_healthy
     volumes:
-      - ./scripts/init-bucket.sh:/scripts/init-bucket.sh:ro
+      - ./spark-batch/init-bucket.sh:/spark-batch/init-bucket.sh:ro
       - ./config:/config
-    command: ["/scripts/init-bucket.sh"]
+    command: ["/spark-batch/init-bucket.sh"]
 ```
 Service này vốn dĩ **không phải là hệ thống duy trì liên tục** (không phải Nginx hay database). Nó chỉ là một công cụ (Tool) chạy một đoạn script một lần duy nhất, tạo bucket, rồi Tắt Ngủ. Nếu để trong Compose, vòng đời của nó bị trói chung với hệ thống tổng.
 
@@ -25,7 +25,7 @@ Bạn sẽ phải chạy lệnh sau để kéo file shell kia thành ConfigMap:
 
 ```bash
 # Đứng từ Folder gốc (Big-Data) gõ:
-kubectl create configmap minio-init-script --from-file=init-bucket.sh=init/scripts/init-bucket.sh
+kubectl create configmap minio-init-script --from-file=init-bucket.sh=init/spark-batch/init-bucket.sh
 ```
 
 ## 2. Viết Job Manifest
@@ -44,7 +44,7 @@ spec:
       containers:
         - name: mc
           image: minio/mc:latest
-          command: ["/bin/sh", "/scripts/init-bucket.sh"]
+          command: ["/bin/sh", "/spark-batch/init-bucket.sh"]
 ...
 ```
 

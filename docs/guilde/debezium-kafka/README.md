@@ -44,7 +44,7 @@ docker compose up -d
 docker compose ps
 
 # 4. Đăng ký connectors
-./scripts/register-connectors.sh
+./spark-batch/register-connectors.sh
 
 # 5. Kiểm tra data trong MinIO
 docker exec minio-mc mc ls myminio/bigdata/bronze/ --recursive

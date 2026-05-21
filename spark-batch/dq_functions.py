@@ -1,4 +1,4 @@
-# scripts/dq_functions.py
+# spark-batch/dq_functions.py
 import pyspark.sql.functions as F
 from pyspark.sql.types import StringType
 

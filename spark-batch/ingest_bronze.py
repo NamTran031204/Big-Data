@@ -1,4 +1,4 @@
-# scripts/ingest_csv_to_bronze.py
+# spark-batch/ingest_csv_to_bronze.py
 import os
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F

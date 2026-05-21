@@ -39,7 +39,7 @@ minikube addons enable storage-provisioner
 kubectl apply -f k8s/namespace.yaml
 
 # Tạo secrets từ env files
-# (Hoặc chạy script: ./k8s/scripts/create-secrets.sh)
+# (Hoặc chạy script: ./k8s/spark-batch/create-secrets.sh)
 kubectl apply -f k8s/secrets/ -n bigdata
 kubectl apply -f k8s/configmaps/ -n bigdata
 ```

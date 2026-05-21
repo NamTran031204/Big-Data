@@ -109,7 +109,7 @@ MONGO_PASSWORD=admin123456
 Execute the script:
 
 ```bash
-python <skill-dir>/scripts/map_env.py --env-file <project-root>/init/.env --output-dir <project-root>/k8s/secrets/
+python <skill-dir>/spark-batch/map_env.py --env-file <project-root>/init/.env --output-dir <project-root>/k8s/secrets/
 ```
 
 The script will:
