@@ -16,3 +16,5 @@ airflow/logs/dag_processor_manager
 airflow/logs/scheduler
 
 minio-data
+
+scripts\__pycache__
