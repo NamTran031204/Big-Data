@@ -18,3 +18,5 @@ airflow/logs/scheduler
 minio-data
 
 scripts\__pycache__
+
+.claude/settings.local.json
