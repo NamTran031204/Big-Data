@@ -1,4 +1,4 @@
-# scripts/generate_report.py
+# spark-batch/generate_report.py
 from ingest_bronze import spark  
 from dq_functions import check_basics, get_stats
 import json

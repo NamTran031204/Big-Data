@@ -23,7 +23,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./spark-batch/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     command:
       - "postgres"
       - "-c" 
@@ -176,10 +176,10 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - ./scripts/init-bucket.sh:/scripts/init-bucket.sh:ro
+      - ./spark-batch/init-bucket.sh:/spark-batch/init-bucket.sh:ro
       - ./config:/config
     entrypoint: /bin/sh
-    command: ["/scripts/init-bucket.sh"]
+    command: ["/spark-batch/init-bucket.sh"]
     networks:
       - minio-network
 

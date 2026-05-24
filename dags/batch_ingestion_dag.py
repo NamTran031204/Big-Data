@@ -2,7 +2,7 @@ import sys
 import os
 from datetime import datetime, timedelta
 
-scripts_path = '/opt/airflow/scripts'
+scripts_path = '/opt/airflow/spark-batch'
 if scripts_path not in sys.path:
     sys.path.append(scripts_path)
     
