@@ -41,11 +41,14 @@ TABLE_SCHEMAS = {
         StructField("review_answer_timestamp", TimestampType(), True)
     ]),
     "orders": StructType([
-        StructField("order_id", StringType(), False),
+        StructField("order_id", StringType(), True),
         StructField("customer_id", StringType(), True),
-        StructField("amount", DoubleType(), True),
         StructField("order_status", StringType(), True),
-        StructField("order_purchase_timestamp", StringType(), True) # Để String để an toàn
+        StructField("order_purchase_timestamp", TimestampType(), True),
+        StructField("order_approved_at", TimestampType(), True),
+        StructField("order_delivered_carrier_date", TimestampType(), True),
+        StructField("order_delivered_customer_date", TimestampType(), True),
+        StructField("order_estimated_delivery_date", TimestampType(), True),
     ]),
     "products": StructType([
         StructField("product_id", StringType(), False),
