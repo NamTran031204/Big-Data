@@ -1,69 +1,49 @@
 package com.example.BigData.kafka.producer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.BigData.entity.kafka.OrderEvent;
+import com.example.BigData.entity.kafka.base.BaseEvent;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.CompletableFuture;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class KafkaProducerService {
 
-    private static final Logger log = LoggerFactory.getLogger(KafkaProducerService.class);
+    private final KafkaTemplate<String, String> jsonKafkaTemplate;
+    private final KafkaTemplate<String, byte[]> byteKafkaTemplate;
 
-    @Autowired
-    private KafkaTemplate<String, String> kafkaTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    // Send simple string message
-    public void sendMessage(String topic, String message) {
-        CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(topic, message);
-
-        future.whenComplete((result, ex) -> {
-            if (ex == null) {
-                log.info("✅ Sent message='{}' to topic='{}', partition={}, offset={}",
-                        message,
-                        result.getRecordMetadata().topic(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            } else {
-                log.error("❌ Failed to send message='{}' due to: {}", message, ex.getMessage());
-            }
-        });
+    // Tiêm chính xác các Template đã cấu hình trong KafkaProducerConfig
+    public KafkaProducerService(
+            @Qualifier("jsonKafkaTemplate") KafkaTemplate<String, String> jsonKafkaTemplate,
+            @Qualifier("byteKafkaTemplate") KafkaTemplate<String, byte[]> byteKafkaTemplate) {
+        this.jsonKafkaTemplate = jsonKafkaTemplate;
+        this.byteKafkaTemplate = byteKafkaTemplate;
     }
 
-    // Send message with key (for partitioning)
-    public void sendMessageWithKey(String topic, String key, String message) {
-        CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(topic, key, message);
-
-        future.whenComplete((result, ex) -> {
-            if (ex == null) {
-                log.info("✅ Sent key='{}' message='{}' to topic='{}'", key, message, topic);
-            } else {
-                log.error("❌ Failed to send message with key='{}': {}", key, ex.getMessage());
-            }
-        });
+    // Hàm cũ bạn đang dùng cho các mục đích khác
+    public void sendMessage(String topic, String key, String message) {
+        jsonKafkaTemplate.send(topic, key, message);
     }
 
-    // Send object as JSON
-    public void sendObject(String topic, String key, Object payload) {
+    // HÀM MỚI: Fix lỗi "cannot find symbol" cho OrderSyncService
+    public void sendOrderEvent(String topic, String key, OrderEvent event, BaseEvent.SerializationFormat format) {
         try {
-
-            ObjectMapper mapper = new ObjectMapper(new com.fasterxml.jackson.core.JsonFactory());
-
-            String json = mapper.writeValueAsString(payload);
-
-            System.out.println("DEBUG - CHUỖI JSON GỬI ĐI: " + json);
-
-            sendMessageWithKey(topic, key, json);
+            if (format == BaseEvent.SerializationFormat.PARQUET) {
+                // Nếu là Parquet, dùng byteKafkaTemplate để gửi mảng byte
+                byte[] data = event.getPayload(); // Giả định OrderEvent có hàm getPayload trả về byte[]
+                byteKafkaTemplate.send(topic, key, data);
+                log.info("📤 Sent Parquet event to topic: {}", topic);
+            } else {
+                // Mặc định gửi JSON bằng jsonKafkaTemplate
+                // Bạn có thể dùng ObjectMapper để convert event thành String nếu cần,
+                // hoặc gửi raw string nếu OrderSyncService đã convert rồi.
+                jsonKafkaTemplate.send(topic + "_json", key, event.toString());
+                log.info("📤 Sent JSON event to topic: {}", topic + "_json");
+            }
         } catch (Exception e) {
-            log.error("❌ Lỗi Serialize: {}", e.getMessage());
+            log.error("❌ Error sending OrderEvent: {}", e.getMessage());
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.example.BigData.kafka.producer;
 
+import com.example.BigData.entity.kafka.OrderEvent;
+import com.example.BigData.entity.kafka.base.BaseEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,8 +11,9 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
-@Component
+//@Component
 public class KafkaTestProducer implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaTestProducer.class);

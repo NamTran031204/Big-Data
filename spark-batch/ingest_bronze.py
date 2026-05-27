@@ -1,4 +1,4 @@
-# scripts/ingest_csv_to_bronze.py
+# spark-batch/ingest_csv_to_bronze.py
 import os
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
@@ -7,8 +7,8 @@ from schemas import TABLE_SCHEMAS
 spark = SparkSession.builder \
     .appName("Olist_CSV_Ingestion") \
     .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000") \
-    .config("spark.hadoop.fs.s3a.access.key", "admin") \
-    .config("spark.hadoop.fs.s3a.secret.key", "password123") \
+    .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
+    .config("spark.hadoop.fs.s3a.secret.key", "minioadmin123456") \
     .config("spark.hadoop.fs.s3a.path.style.access", "true") \
     .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
     .getOrCreate()

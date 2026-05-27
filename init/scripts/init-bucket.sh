@@ -2,6 +2,7 @@
 set -e
 MINIO_HOST="http://minio:9000"
 BUCKET_NAME="bigdata"
+ZONE_BUCKETS="bronze-zone silver-zone gold-zone"
 ACCESS_FILE="/config/access.txt"
 ALIAS_NAME="myminio"
 
@@ -35,15 +36,19 @@ fi
 
 # ========== BƯỚC 2: Tạo Bucket ==========
 echo ""
-echo "[2/4] Kiểm tra và tạo bucket '${BUCKET_NAME}'..."
+echo "[2/4] Kiểm tra và tạo các bucket..."
 
-if mc ls ${ALIAS_NAME}/${BUCKET_NAME} >/dev/null 2>&1; then
-    echo "      ✓ Bucket '${BUCKET_NAME}' đã tồn tại."
-else
-    echo "      Đang tạo bucket '${BUCKET_NAME}'..."
-    mc mb ${ALIAS_NAME}/${BUCKET_NAME}
-    echo "      ✓ Bucket '${BUCKET_NAME}' đã được tạo."
-fi
+ALL_BUCKETS="${BUCKET_NAME} ${ZONE_BUCKETS}"
+
+for bucket in ${ALL_BUCKETS}; do
+    if mc ls ${ALIAS_NAME}/${bucket} >/dev/null 2>&1; then
+        echo "      ✓ Bucket '${bucket}' đã tồn tại."
+    else
+        echo "      Đang tạo bucket '${bucket}'..."
+        mc mb ${ALIAS_NAME}/${bucket}
+        echo "      ✓ Bucket '${bucket}' đã được tạo."
+    fi
+done
 
 # ========== BƯỚC 3: Generate Access Key ==========
 echo ""
@@ -88,7 +93,7 @@ echo ""
 echo "Thông tin kết nối:"
 echo "  - Endpoint:    ${MINIO_HOST}"
 echo "  - Console:     http://localhost:9001"
-echo "  - Bucket:      ${BUCKET_NAME}"
+echo "  - Buckets:     ${BUCKET_NAME} ${ZONE_BUCKETS}"
 echo "  - Access Key:  ${ACCESS_KEY}"
 echo "  - Secret Key:  ${ACCESS_KEY_OUTPUT} (xem trong ${ACCESS_FILE})"
 echo ""

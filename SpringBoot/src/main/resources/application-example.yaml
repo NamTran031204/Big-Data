@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/airflow 
+    url: jdbc:postgresql://localhost:5433/airflow
     username: airflow
     password: airflow
     driver-class-name: org.postgresql.Driver

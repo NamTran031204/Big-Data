@@ -37,7 +37,7 @@ Thêm PostgreSQL service vào `docker-compose.yml`:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./spark-batch/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     command:
       - "postgres"
       - "-c"

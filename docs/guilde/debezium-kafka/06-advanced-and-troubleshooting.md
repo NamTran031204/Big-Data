@@ -206,7 +206,7 @@ docker exec bigdata-postgres psql -U postgres -d olist \
 docker exec minio-mc mc rm --recursive --force myminio/bigdata/bronze/
 
 # Đăng ký lại connectors
-./scripts/register-connectors.sh
+./spark-batch/register-connectors.sh
 ```
 
 ## 5. Tóm tắt toàn bộ cấu hình files cần tạo

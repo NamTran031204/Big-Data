@@ -30,28 +30,23 @@ public class KafkaToBronzeConsumer {
     private String bronzeBucket;
 
     @KafkaListener(topics = "orders-topic", groupId = "olist-data-group")
-    public void consumeBatch(List<String> messages) {
-        if (messages == null || messages.isEmpty())
+    public void consume(String msg) { // Đổi từ List<String> sang String
+        if (msg == null || msg.isBlank())
             return;
 
-        log.info("📥 Nhận được lô dữ liệu mới: {} records", messages.size());
-        StringBuilder batchData = new StringBuilder();
-        ObjectMapper mapper = new ObjectMapper();
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(msg);
 
-        for (String msg : messages) {
-            try {
-
-                Object jsonNode = mapper.readValue(msg, Object.class);
-                String cleanJson = mapper.writeValueAsString(jsonNode);
-                batchData.append(cleanJson).append("\n");
-            } catch (Exception e) {
-                log.warn("⚠️ Tin nhắn không phải JSON chuẩn, bỏ qua: {}", msg);
+            if (node.isObject()) {
+                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS"));
+                uploadToMinio("raw_data/olist_order_" + timestamp + ".json", msg);
+                log.info("✅ Đã lưu một đơn hàng mới vào MinIO");
+            } else {
+                log.warn("⚠️ Bỏ qua dữ liệu không phải Object: {}", msg);
             }
-        }
-
-        if (batchData.length() > 0) {
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS"));
-            uploadToMinio("raw_data/olist_batch_" + timestamp + ".jsonl", batchData.toString());
+        } catch (Exception e) {
+            log.error("❌ Lỗi định dạng JSON: {}", msg);
         }
     }
 

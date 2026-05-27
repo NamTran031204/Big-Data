@@ -14,3 +14,9 @@ init/data/minio/.minio.sys
 
 airflow/logs/dag_processor_manager
 airflow/logs/scheduler
+
+minio-data
+
+scripts\__pycache__
+
+.claude/settings.local.json
