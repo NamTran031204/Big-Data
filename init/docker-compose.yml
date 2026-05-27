@@ -1,10 +1,8 @@
 version: '3.8'
 
-x-airflow-common:
-  &airflow-common
+x-airflow-common: &airflow-common
   image: apache/airflow:2.11.2
-  environment:
-    &airflow-common-env
+  environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-postgres/airflow
@@ -21,8 +19,7 @@ x-airflow-common:
     - ../airflow/config:/opt/airflow/config
     - ../airflow/plugins:/opt/airflow/plugins
   user: "${AIRFLOW_UID:-50000}:0"
-  depends_on:
-    &airflow-common-depends-on
+  depends_on: &airflow-common-depends-on
     airflow-redis:
       condition: service_healthy
     airflow-postgres:
@@ -58,7 +55,7 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d olist"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d olist" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,7 +100,7 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      test: [ "CMD", "nc", "-z", "localhost", "2181" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -130,7 +127,7 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -178,7 +175,7 @@ services:
     networks:
       - kafka-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8083/connectors" ]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -203,7 +200,7 @@ services:
       - ./config:/root/.minio
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -232,7 +229,7 @@ services:
       - ./scripts/init-bucket.sh:/scripts/init-bucket.sh:ro
       - ./config:/config
     entrypoint: /bin/sh
-    command: ["/scripts/init-bucket.sh"]
+    command: [ "/scripts/init-bucket.sh" ]
     networks:
       - minio-network
 
@@ -250,7 +247,7 @@ services:
     volumes:
       - airflow-postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
       interval: 10s
       retries: 5
       start_period: 5s
@@ -264,7 +261,7 @@ services:
     expose:
       - 6379
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 30s
       retries: 50
@@ -279,7 +276,7 @@ services:
     ports:
       - "8081:8080"
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -295,7 +292,7 @@ services:
     container_name: airflow-scheduler
     command: scheduler
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      test: [ "CMD", "curl", "--fail", "http://localhost:8974/health" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -332,7 +329,7 @@ services:
     container_name: airflow-triggerer
     command: triggerer
     healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      test: [ "CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"' ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -422,7 +419,44 @@ services:
       - airflow
     networks:
       - airflow-network
+  # =============================================================
+  # SPARK STACK (Master & Worker)
+  # =============================================================
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: spark-master
+    hostname: spark-master
+    restart: unless-stopped
+    # Apache image dùng lệnh command trực tiếp thay vì biến môi trường
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "8082:8080" # Web UI của Spark Master
+      - "7077:7077" # Port để kết nối
+    networks:
+      - spark-network
+      - kafka-network
+      - minio-network
+      - airflow-network
+    volumes:
+      - ./spark-batch:/opt/spark/spark-batch
+      - ./spark-streaming:/opt/spark/spark-streaming
+      - ./jars:/opt/spark/jars
 
+  spark-worker:
+    image: apache/spark:3.5.1
+    container_name: spark-worker
+    restart: unless-stopped
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores 2 --memory 2g
+    networks:
+      - spark-network
+      - kafka-network
+      - minio-network
+    volumes:
+      - ./spark-batch:/opt/spark/spark-batch
+      - ./spark-streaming:/opt/spark/spark-streaming
+      - ./jars:/opt/spark/jars
+    depends_on:
+      - spark-master
 # =============================================================
 # VOLUMES & NETWORKS
 # =============================================================
@@ -443,4 +477,6 @@ networks:
   minio-network:
     driver: bridge
   airflow-network:
+    driver: bridge
+  spark-network:
     driver: bridge

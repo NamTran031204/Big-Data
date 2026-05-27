@@ -5,6 +5,10 @@ from schemas import TABLE_SCHEMAS
 # 1. Khởi tạo Spark
 spark = SparkSession.builder \
     .appName("Olist_Bronze_To_Silver_Final") \
+    .config("spark.jars.packages", 
+            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,"
+            "org.apache.hadoop:hadoop-aws:3.3.6,"
+            "org.postgresql:postgresql:42.7.3") \
     .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000") \
     .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
     .config("spark.hadoop.fs.s3a.secret.key", "minioadmin123456") \
