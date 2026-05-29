@@ -440,6 +440,9 @@ services:
     volumes:
       - ./spark-batch:/opt/spark/spark-batch
       - ./spark-streaming:/opt/spark/spark-streaming
+    environment:
+      - SPARK_DRIVER_MEMORY=2g
+      - SPARK_EXECUTOR_MEMORY=2g
 
   spark-worker:
     image: apache/spark:3.5.1
@@ -453,6 +456,9 @@ services:
     volumes:
       - ./spark-batch:/opt/spark/spark-batch
       - ./spark-streaming:/opt/spark/spark-streaming
+    environment:
+      - SPARK_DRIVER_MEMORY=2g
+      - SPARK_EXECUTOR_MEMORY=2g
     depends_on:
       - spark-master
 # =============================================================
