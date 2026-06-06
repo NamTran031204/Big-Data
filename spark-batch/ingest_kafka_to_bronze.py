@@ -8,7 +8,7 @@ spark = SparkSession.builder \
     .appName("Olist_Kafka_To_Bronze") \
     .config("spark.jars.packages", 
             "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,"
-            "org.apache.hadoop:hadoop-aws:3.3.6,"
+            "org.apache.hadoop:hadoop-aws:3.3.4,"
             "org.postgresql:postgresql:42.7.3") \
     .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
     .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
@@ -23,8 +23,7 @@ spark.sparkContext.setLogLevel("WARN")
 # ==========================================
 # 2. THÔNG SỐ HỆ THỐNG
 # ==========================================
-# Lưu ý: Thay "kafka:9092" bằng tên service kafka trong file docker-compose của bạn nếu khác
-KAFKA_BOOTSTRAP = "kafka:9092" 
+KAFKA_BOOTSTRAP = "kafka:9094" 
 DEBEZIUM_PREFIX = "olist_cdc.public"
 MINIO_BUCKET = "bronze-zone"
 
