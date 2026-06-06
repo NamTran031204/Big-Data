@@ -461,6 +461,34 @@ services:
       - SPARK_EXECUTOR_MEMORY=2g
     depends_on:
       - spark-master
+
+  # =============================================================
+  # WEB API — Phục vụ dữ liệu Sản phẩm (Tầng Gold)
+  # =============================================================
+  product-api:
+    build:
+      context: ../services/product-api
+      dockerfile: Dockerfile
+    container_name: product-api-container
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      # Cấu hình kết nối sang container PostgreSQL của hệ thống
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=olist
+    volumes:
+      - ../services/product-api/app:/app/app
+    networks:
+      - kafka-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 # =============================================================
 # VOLUMES & NETWORKS
 # =============================================================
