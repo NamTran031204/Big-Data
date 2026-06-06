@@ -438,8 +438,8 @@ services:
       - minio-network
       - airflow-network
     volumes:
-      - ./spark-batch:/opt/spark/spark-batch
-      - ./spark-streaming:/opt/spark/spark-streaming
+      - ../spark-batch:/opt/spark/spark-batch
+      - ../spark-streaming:/opt/spark/spark-streaming
     environment:
       - SPARK_DRIVER_MEMORY=2g
       - SPARK_EXECUTOR_MEMORY=2g
@@ -454,8 +454,8 @@ services:
       - kafka-network
       - minio-network
     volumes:
-      - ./spark-batch:/opt/spark/spark-batch
-      - ./spark-streaming:/opt/spark/spark-streaming
+      - ../spark-batch:/opt/spark/spark-batch
+      - ../spark-streaming:/opt/spark/spark-streaming
     environment:
       - SPARK_DRIVER_MEMORY=2g
       - SPARK_EXECUTOR_MEMORY=2g

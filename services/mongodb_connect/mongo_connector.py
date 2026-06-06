@@ -178,33 +178,33 @@ if __name__ == "__main__":
     mongo = MongoConnector(MONGO_URI, DB_NAME)
     mongo.connect()
 
-    # Insert example
-    mongo.insert_one("test1", {"name": "Alice", "age": 25})
+    # # Insert example
+    # mongo.insert_one("test1", {"name": "Alice", "age": 25})
 
-    # Bulk insert
-    docs = [{"name": f"User{i}", "age": i} for i in range(10)]
-    mongo.bulk_insert("test1", docs, batch_size=5)
+    # # Bulk insert
+    # docs = [{"name": f"User{i}", "age": i} for i in range(10)]
+    # mongo.bulk_insert("test1", docs, batch_size=5)
 
-    # Upsert example
-    mongo.upsert_one("test1", {"name": "Alice"}, {"age": 30})
+    # # Upsert example
+    # mongo.upsert_one("test1", {"name": "Alice"}, {"age": 30})
 
-    # Bulk upsert
-    mongo.bulk_upsert("test1", docs, key_fields=["name"])
+    # # Bulk upsert
+    # mongo.bulk_upsert("test1", docs, key_fields=["name"])
 
-    mongo.create_compound_index(
-        "test1",
-        [("name", 1), ("age", -1)]
-    )
+    # mongo.create_compound_index(
+    #     "test1",
+    #     [("name", 1), ("age", -1)]
+    # )
 
-    mongo.create_index("test1", "name", unique=True)
+    # mongo.create_index("test1", "name", unique=True)
 
-    mongo.insert_one("logs", {
-        "message": "test log",
-        "created_at": datetime.now(UTC)
-    })
+    # mongo.insert_one("logs", {
+    #     "message": "test log",
+    #     "created_at": datetime.now(UTC)
+    # })
 
-    indexes = mongo.list_indexes("test1")
-    for idx in indexes:
-        print(idx)
+    # indexes = mongo.list_indexes("test1")
+    # for idx in indexes:
+    #     print(idx)
 
-    mongo.close()
+    # mongo.close()
