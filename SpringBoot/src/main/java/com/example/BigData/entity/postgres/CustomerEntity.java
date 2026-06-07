@@ -29,10 +29,10 @@ public class CustomerEntity {
     private String customerZipCodePrefix;
 
     @Column(name = "customer_city", length = 100)
-    private String customerCity;
+    private String city;
 
     @Column(name = "customer_state", length = 2)
-    private String customerState;
+    private String state;
 
     // Relationship: 1 customer -> nhiều orders
     @OneToMany(mappedBy = "customer", fetch = FetchType.LAZY)
