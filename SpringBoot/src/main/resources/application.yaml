@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/airflow 
-    username: airflow
-    password: airflow
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: postgres
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -16,7 +16,7 @@ spring:
 
   # 2. Setup MongoDB
   mongodb:
-    uri: mongodb://127.0.0.1:27017/olist_db
+    uri: mongodb://admin:admin123456@127.0.0.1:27017/olist_db?authSource=admin
 
   # 3. Setup Kafka
   kafka:
@@ -31,14 +31,14 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
   minio:
     url: http://localhost:9000
-    access-key: admin
-    secret-key: password123
+    access-key: minioadmin
+    secret-key: minioadmin123456
     buckets:
       bronze: bronze-zone
 
 # 4.Setup Server
 server:
-  port: 8081
+  port: 8085
 
 # 5. SetupLogging
 logging:

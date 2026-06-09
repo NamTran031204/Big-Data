@@ -1,0 +1,161 @@
+# Airflow (LocalExecutor) cho minikube: postgres metadata + init job + webserver + scheduler.
+# Image custom bigdata-airflow:2.11.2 (có Spark + provider). DAG nạp qua configMap
+# `airflow-dags` (make k8s-code-configmaps).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-env
+  namespace: bigdata
+data:
+  AIRFLOW__CORE__EXECUTOR: "LocalExecutor"
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__CORE__FERNET_KEY: ""
+  AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+  AIRFLOW_CONN_SPARK_DEFAULT: "spark://spark-master:7077"
+  PYTHONPATH: "/opt/project"
+  # Connect + DB host cho task ensure_connectors (k8s service names)
+  CONNECT_URL: "http://debezium-connect:8083"
+  DEBEZIUM_DB_HOST: "postgres"
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_ACCESS_KEY: "minioadmin"
+  MINIO_SECRET_KEY: "minioadmin123456"
+  MONGO_LOCAL_URI: "mongodb://admin:admin123456@mongodb:27017/?authSource=admin"
+  MONGO_ATLAS_URI: ""
+  MONGO_DB: "olist_gold"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-postgres
+  namespace: bigdata
+  labels: { app: airflow-postgres }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: airflow-postgres }
+  template:
+    metadata:
+      labels: { app: airflow-postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:13
+          env:
+            - { name: POSTGRES_USER, value: "airflow" }
+            - { name: POSTGRES_PASSWORD, value: "airflow" }
+            - { name: POSTGRES_DB, value: "airflow" }
+          ports: [ { containerPort: 5432 } ]
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: airflow-postgres-pvc }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-postgres-pvc
+  namespace: bigdata
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-postgres
+  namespace: bigdata
+spec:
+  selector: { app: airflow-postgres }
+  ports: [ { port: 5432, targetPort: 5432 } ]
+  type: ClusterIP
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: airflow-init
+  namespace: bigdata
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: bigdata-airflow:2.11.2
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: airflow-env }
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              airflow db migrate && \
+              airflow users create --username airflow --password airflow \
+                --firstname admin --lastname user --role Admin --email admin@example.com || true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-webserver
+  namespace: bigdata
+  labels: { app: airflow-webserver }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: airflow-webserver }
+  template:
+    metadata:
+      labels: { app: airflow-webserver }
+    spec:
+      containers:
+        - name: webserver
+          image: bigdata-airflow:2.11.2
+          imagePullPolicy: IfNotPresent
+          command: ["airflow", "webserver"]
+          envFrom:
+            - configMapRef: { name: airflow-env }
+          ports: [ { containerPort: 8080 } ]
+          volumeMounts:
+            - { name: dags, mountPath: /opt/airflow/dags }
+      volumes:
+        - name: dags
+          configMap: { name: airflow-dags, optional: true }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-webserver
+  namespace: bigdata
+spec:
+  selector: { app: airflow-webserver }
+  ports: [ { port: 8080, targetPort: 8080 } ]
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+  namespace: bigdata
+  labels: { app: airflow-scheduler }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: airflow-scheduler }
+  template:
+    metadata:
+      labels: { app: airflow-scheduler }
+    spec:
+      containers:
+        - name: scheduler
+          image: bigdata-airflow:2.11.2
+          imagePullPolicy: IfNotPresent
+          command: ["airflow", "scheduler"]
+          envFrom:
+            - configMapRef: { name: airflow-env }
+          volumeMounts:
+            - { name: dags, mountPath: /opt/airflow/dags }
+      volumes:
+        - name: dags
+          configMap: { name: airflow-dags, optional: true }

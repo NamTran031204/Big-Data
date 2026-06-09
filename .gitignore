@@ -24,3 +24,5 @@ scripts\__pycache__
 node_modules/
 dist/
 .env
+
+init/downloads/spark-3.5.1-bin-hadoop3.tgz
