@@ -21,7 +21,7 @@ spark = SparkSession.builder \
 hadoop_conf = spark._jsc.hadoopConfiguration()
 hadoop_conf.set("fs.s3a.endpoint", "http://localhost:9000")
 hadoop_conf.set("fs.s3a.access.key", "minioadmin")
-hadoop_conf.set("fs.s3a.secret.key", "minioadmin123")
+hadoop_conf.set("fs.s3a.secret.key", "minioadmin123456")
 hadoop_conf.set("fs.s3a.path.style.access", "true")
 hadoop_conf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 hadoop_conf.set("fs.s3a.connection.ssl.enabled", "false")
