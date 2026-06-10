@@ -47,6 +47,15 @@ if os.environ.get("LOCAL_RUN", "0") == "1":
 spark = _builder.getOrCreate()
 spark.sparkContext.setLogLevel("WARN")
 
+print("\n" + "=" * 50, flush=True)
+print("[STREAMING] UserBehavior Consumer khởi động", flush=True)
+print(f"  Kafka broker : {KAFKA_BOOTSTRAP}", flush=True)
+print(f"  Topic        : user_behavior_events", flush=True)
+print(f"  Postgres     : {PG_URL}", flush=True)
+print(f"  Checkpoint   : {CHECKPOINT}", flush=True)
+print(f"  DEBUG_CONSOLE: {DEBUG_CONSOLE}", flush=True)
+print("=" * 50, flush=True)
+
 # ── Schema khớp với UserBehaviorEvent ──
 user_behavior_schema = StructType() \
     .add("eventId",     StringType()) \
@@ -61,16 +70,17 @@ user_behavior_schema = StructType() \
     .add("searchTerm",  StringType())
 
 # ── Đọc raw từ Kafka ─────────────────────────────────────────────────────────────
+print("\n[1/4] Kết nối Kafka readStream...", flush=True)
 raw_df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP) \
     .option("subscribe", "user_behavior_events") \
     .option("startingOffsets", "latest") \
     .load()
-
-print(f"Du lieu kafka {raw_df}", flush=True)
+print("      readStream định nghĩa OK (chưa chạy thực — streaming lazy)", flush=True)
 
 # ── Parse JSON ───────────────────────────────────────────────────────────────────
+print("\n[2/4] Định nghĩa parse JSON + filter (userId & category not null)...", flush=True)
 parsed_df = raw_df \
     .selectExpr("CAST(value AS STRING) AS raw_json", "timestamp AS kafka_ts") \
     .select(
@@ -116,6 +126,7 @@ ts_expr = (
     ).otherwise(to_timestamp(col("eventTime")))
 )
 
+print("\n[3/4] Định nghĩa window aggregation (30s, watermark 2m)...", flush=True)
 preference_df = (
     parsed_df
     .withColumn("event_ts", ts_expr)
@@ -130,8 +141,33 @@ preference_df = (
 )
 
 def write_to_postgres(batch_df: DataFrame, batch_id: int):
-    print(f"\n>>> start write_to_postgres batch {batch_id}", flush=True)
-    
+    print(f"\n{'─' * 40}", flush=True)
+    print(f"[BATCH {batch_id}] foreachBatch bắt đầu", flush=True)
+
+    # Kiểm tra rỗng trước khi làm bất cứ điều gì
+    if batch_df.limit(1).count() == 0:
+        print(f"[BATCH {batch_id}] Rỗng — bỏ qua.", flush=True)
+        return
+
+    # Breakdown event type trong batch này
+    try:
+        breakdown = (
+            batch_df.groupBy("userId", "category")
+            .agg(_sum("total_score").alias("s"))
+            .agg(
+                count("*").alias("user_category_pairs"),
+                _sum("s").alias("total_score_sum"),
+            )
+            .collect()[0]
+        )
+        print(
+            f"[BATCH {batch_id}] {breakdown['user_category_pairs']:,} cặp (user, category)"
+            f" | tổng score = {breakdown['total_score_sum']:,.0f}",
+            flush=True,
+        )
+    except Exception as e:
+        print(f"[BATCH {batch_id}] Không tính được breakdown: {e}", flush=True)
+
     # Gom về (user_id, category)
     result_df = (
         batch_df
@@ -144,13 +180,9 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
         .groupBy("user_id", "category")
         .agg(_sum("score").alias("score"), _max("updated_at").alias("updated_at"))
     )
-    
-    # Kiểm tra rỗng bằng count() thay vì rdd.isEmpty()
-    if batch_df.limit(1).count() == 0:
-        print(f"Batch {batch_id} is empty, skipping.", flush=True)
-        return
 
-    print(f"Batch {batch_id}: writing {result_df.count()} rows to staging...", flush=True)
+    n_rows = result_df.count()
+    print(f"[BATCH {batch_id}] Ghi {n_rows:,} dòng -> user_preference_staging...", flush=True)
     result_df.write \
         .format("jdbc") \
         .option("url", PG_URL) \
@@ -160,8 +192,9 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
         .option("password", PG_PASSWORD) \
         .mode("overwrite") \
         .save()
+    print(f"[BATCH {batch_id}] Staging ghi xong ({n_rows:,} dòng)", flush=True)
 
-    print(f"Batch {batch_id}: connecting to Postgres for upsert...", flush=True)
+    print(f"[BATCH {batch_id}] Kết nối Postgres upsert...", flush=True)
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT, dbname="olist",
         user=PG_USER, password=PG_PASSWORD,
@@ -169,7 +202,7 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
     try:
         cur = conn.cursor()
 
-        # 2) Cộng dồn điểm vào user_preference.
+        # 1) Cộng dồn điểm vào user_preference.
         cur.execute("""
             INSERT INTO user_preference (user_id, category, score, updated_at)
             SELECT user_id, category, score, updated_at
@@ -179,14 +212,16 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
                 score      = user_preference.score + EXCLUDED.score,
                 updated_at = EXCLUDED.updated_at;
         """)
+        print(f"[BATCH {batch_id}] upsert user_preference: {cur.rowcount:,} rows affected", flush=True)
 
-        # 3) Xoá recommendation cũ của các user vừa thay đổi.
+        # 2) Xoá recommendation cũ của các user vừa thay đổi.
         cur.execute("""
             DELETE FROM user_recommendation
             WHERE user_id IN (SELECT DISTINCT user_id FROM user_preference_staging);
         """)
+        print(f"[BATCH {batch_id}] delete user_recommendation cũ: {cur.rowcount:,} rows", flush=True)
 
-        # 4) Tính lại top-10 sản phẩm theo category ưa thích cho user vừa đổi.
+        # 3) Tính lại top-10 sản phẩm theo category ưa thích cho user vừa đổi.
         cur.execute("""
             INSERT INTO user_recommendation
                 (user_id, product_id, sequence_no, recommendation_score, updated_at)
@@ -211,18 +246,25 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
             FROM ranked
             WHERE sequence_no <= 10;
         """)
+        print(f"[BATCH {batch_id}] insert user_recommendation mới: {cur.rowcount:,} rows", flush=True)
 
-        # 5) Dọn staging.
+        # 4) Dọn staging.
         cur.execute("TRUNCATE TABLE user_preference_staging;")
+        print(f"[BATCH {batch_id}] truncate staging OK", flush=True)
 
         conn.commit()
         cur.close()
-        print(f"[user_behavior] batch {batch_id} completed.", flush=True)
+        print(f"[BATCH {batch_id}] COMMIT OK — hoàn tất.", flush=True)
+    except Exception as e:
+        conn.rollback()
+        print(f"[BATCH {batch_id}] LỖI — ROLLBACK: {e}", flush=True)
+        raise
     finally:
         conn.close()
 
 
 # ── Query chính: foreachBatch -> Postgres ──────────────────────────────────────────
+print("\n[4/4] Khởi động writeStream -> foreachBatch -> Postgres...", flush=True)
 query = (
     preference_df.writeStream
     .foreachBatch(write_to_postgres)
@@ -230,6 +272,8 @@ query = (
     .option("checkpointLocation", CHECKPOINT)
     .start()
 )
+print(f"      Stream started | queryId={query.id} | name={query.name}", flush=True)
+print("      Đang chờ dữ liệu từ Kafka... (Ctrl+C để dừng)\n", flush=True)
 
 if DEBUG_CONSOLE:
     parsed_df \

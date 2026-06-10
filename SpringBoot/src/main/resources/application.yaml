@@ -1,6 +1,5 @@
 spring:
   datasource:
-    # Host 5433 -> container bigdata-postgres:5432 (xem init/docker-compose.yml; tránh PG native trên 5432)
     url: jdbc:postgresql://localhost:5433/olist
     username: postgres
     password: postgres
@@ -24,11 +23,9 @@ spring:
 server:
   port: 8085
 
-# Fake-insert order graph vào Postgres OLTP để demo CDC realtime (FakeOltpInsertScheduler).
-# enabled=false để tắt; interval-ms = nhịp giữa các order (ms).
 fakeoltp:
   enabled: true
-  interval-ms: 8000
+  order-interval-ms: 30000
 
 logging:
   level:

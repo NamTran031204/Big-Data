@@ -27,6 +27,12 @@ spec:
             - { containerPort: 8080, name: ui }
           env:
             - { name: PYTHONPATH, value: "/opt/project" }
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
           volumeMounts:
             - { name: spark-batch-code, mountPath: /opt/project/spark-batch }
             - { name: services-code, mountPath: /opt/project/services/mongodb_connect }
@@ -63,6 +69,10 @@ spec:
       labels: { app: spark-worker }
     spec:
       enableServiceLinks: false
+      initContainers:
+        - name: wait-spark-master
+          image: busybox
+          command: ['sh', '-c', 'until wget -qO- http://spark-master:8080 > /dev/null 2>&1; do echo wait-spark-master; sleep 3; done']
       containers:
         - name: spark-worker
           image: bigdata-spark:3.5.1

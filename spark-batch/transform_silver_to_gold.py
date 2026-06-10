@@ -28,7 +28,7 @@ MONGO_DB = os.environ.get("MONGO_DB", "olist_gold")
 MONGO_LOCAL_URI = os.environ.get(
     "MONGO_LOCAL_URI", "mongodb://admin:admin123456@bigdata-mongodb:27017/?authSource=admin"
 )
-MONGO_ATLAS_URI = os.environ.get("MONGO_ATLAS_URI", "").strip()
+MONGO_ATLAS_URI = os.environ.get("MONGO_ATLAS_URI", "mongodb+srv://tpnam1w3_db_user:tpnam1w3_db_user@bigdata.ztuwyz6.mongodb.net/?appName=bigdata").strip()
 
 SILVER_IN = "s3a://silver-zone/olist_unified_silver/"
 GOLD_BASE = "s3a://gold-zone"
@@ -70,9 +70,12 @@ for _label, _uri in [("local", MONGO_LOCAL_URI), ("atlas", MONGO_ATLAS_URI)]:
 
 def write_to_gold(df, table_name, key_fields):
     """Ghi 1 gold collection ra cả 3 nơi (MinIO parquet + các Mongo sink)."""
+    n = df.count()
+    print(f"\n   >>> Ghi: {table_name} ({n:,} dòng)")
+
     # 1) MinIO parquet
     df.write.mode("overwrite").parquet(f"{GOLD_BASE}/{table_name}/")
-    print(f"✅ parquet: {table_name}")
+    print(f"   ✅ MinIO parquet: {table_name}")
 
     if not SINKS:
         return
@@ -83,7 +86,7 @@ def write_to_gold(df, table_name, key_fields):
         try:
             for i in range(0, len(rows), 1000):
                 conn.bulk_upsert(table_name, rows[i : i + 1000], key_fields)
-            print(f"   -> mongo[{label}] {table_name}: {len(rows)} docs")
+            print(f"   ✅ mongo[{label}] {table_name}: {len(rows):,} docs")
         except Exception as e:  # noqa: BLE001
             print(f"   !! mongo[{label}] {table_name} lỗi: {e}")
 
@@ -92,8 +95,13 @@ def write_to_gold(df, table_name, key_fields):
 # Gold metrics
 # ==========================================================
 def create_gold_metrics():
-    print("🏆 Tạo Gold Layer")
+    print("\n" + "=" * 50)
+    print("🏆 [GOLD] Silver -> Gold bắt đầu")
+    print("=" * 50)
+
+    print("\nĐọc silver-zone...")
     silver = spark.read.parquet(SILVER_IN)
+    print(f"   -> {silver.count():,} dòng silver (grain = order_item)")
 
     # ingest_date dạng chuỗi (an toàn cho Mongo: không dùng datetime.date) -> dùng làm KEY upsert
     silver = silver.withColumn("ingest_date", F.date_format(F.col("purchase_ts"), "yyyy-MM-dd"))
@@ -101,16 +109,23 @@ def create_gold_metrics():
     silver = silver.withColumn("date", F.date_trunc("day", F.col("purchase_ts")))
 
     # ---- DF theo grain đơn hàng (khử trùng item) cho metric mức đơn ----
+    print("\nChuẩn bị orders grain (dropDuplicates order_id)...")
     orders_g = silver.dropDuplicates(["order_id"]).select(
         "order_id", "customer_unique_id", "c_state", "order_status", "purchase_ts",
         "ingest_date", "date", "order_payment_value", "payment_type", "review_score",
         "order_delivered_customer_date", "order_estimated_delivery_date",
     )
+    print(f"   -> {orders_g.count():,} đơn hàng (order grain)")
 
     # =====================================================
     # UC1 — REVENUE
     # =====================================================
+    print("\n" + "-" * 40)
+    print("[UC1] REVENUE: doanh thu theo ngày / danh mục / bang / payment")
+    print("-" * 40)
+
     # Doanh thu theo ngày (mức đơn) + tăng trưởng (LAG) + spike flag
+    print("   Tính gold_revenue_metrics (daily, LAG, spike flag)...")
     daily = orders_g.groupBy("ingest_date", "date").agg(
         F.sum("order_payment_value").alias("revenue_daily"),
         F.countDistinct("order_id").alias("order_count"),
@@ -139,6 +154,7 @@ def create_gold_metrics():
 
     # Breakdown: theo danh mục (grain item: item_revenue), theo bang, theo payment_type
     # Đều thêm ingest_date + date -> lọc được theo date range trên Atlas Charts.
+    print("   Tính breakdown: by_category / by_state / by_payment_type...")
     by_cat = silver.groupBy("ingest_date", "date", "product_category_name_english").agg(
         F.sum("item_revenue").alias("revenue"),
         F.countDistinct("order_id").alias("order_count"),
@@ -160,6 +176,11 @@ def create_gold_metrics():
     # =====================================================
     # UC2 — CUSTOMER RFM
     # =====================================================
+    print("\n" + "-" * 40)
+    print("[UC2] CUSTOMER RFM: phân khúc khách hàng + acquisition")
+    print("-" * 40)
+
+    print("   Tính RFM (recency / frequency / monetary + NTILE scoring)...")
     cust = orders_g.filter(F.col("customer_unique_id").isNotNull())
     snapshot = cust.agg(F.max("purchase_ts").alias("snap")).collect()[0]["snap"]
     rfm = cust.groupBy("customer_unique_id").agg(
@@ -186,6 +207,7 @@ def create_gold_metrics():
     write_to_gold(rfm, "gold_customer_rfm", ["customer_unique_id"])
 
     # Khách mới / quay lại theo ngày (first-purchase detection)
+    print("   Tính gold_customer_acquisition (new vs returning per day)...")
     w_cust = Window.partitionBy("customer_unique_id").orderBy("purchase_ts")
     acq = cust.withColumn("__order_seq", F.row_number().over(w_cust))
     acq = acq.withColumn("is_new", (F.col("__order_seq") == 1).cast("int"))
@@ -198,6 +220,11 @@ def create_gold_metrics():
     # =====================================================
     # UC3 — PRODUCT
     # =====================================================
+    print("\n" + "-" * 40)
+    print("[UC3] PRODUCT: metrics sản phẩm / top products / category rank")
+    print("-" * 40)
+
+    print("   Tính gold_product_metrics (sales, review, return rate, category rank)...")
     # Thêm ingest_date + date -> lọc theo date range. Lưu kèm thành phần cộng được
     # (review_score_sum/review_count cho avg, canceled_orders/order_count cho return rate).
     prod = silver.groupBy("ingest_date", "date", "product_id", "product_category_name_english").agg(
@@ -227,6 +254,7 @@ def create_gold_metrics():
     write_to_gold(prod, "gold_product_metrics", ["ingest_date", "product_id"])
 
     # Top 10 sản phẩm theo ngày (Window RANK)
+    print("   Tính gold_top_products_daily (RANK <= 10 per day)...")
     daily_prod = silver.groupBy("ingest_date", "date", "product_id").agg(
         F.sum("item_revenue").alias("daily_sales")
     )
@@ -237,6 +265,7 @@ def create_gold_metrics():
     write_to_gold(daily_prod, "gold_top_products_daily", ["ingest_date", "product_id"])
 
     # Sales by category matrix (pivot category x state), thêm ingest_date + date
+    print("   Tính gold_sales_by_category (pivot category x state)...")
     sales_matrix = (
         silver.groupBy("ingest_date", "date", "product_category_name_english")
         .pivot("c_state")
@@ -246,6 +275,7 @@ def create_gold_metrics():
     write_to_gold(sales_matrix, "gold_sales_by_category", ["ingest_date", "product_category_name_english"])
 
     # Xếp hạng tăng trưởng category theo từng ngày (DENSE_RANK theo doanh thu trong ngày)
+    print("   Tính gold_category_rank (DENSE_RANK revenue per day)...")
     cat_rank = by_cat.withColumn(
         "category_growth_rank",
         F.dense_rank().over(Window.partitionBy("ingest_date").orderBy(F.col("revenue").desc())),
@@ -255,6 +285,11 @@ def create_gold_metrics():
     # =====================================================
     # UC4 — SELLER
     # =====================================================
+    print("\n" + "-" * 40)
+    print("[UC4] SELLER: metrics seller / delivery / daily breakdown")
+    print("-" * 40)
+
+    print("   Tính gold_seller_metrics (revenue, rank, delivery, fulfillment rate)...")
     seller = silver.groupBy("seller_id", "s_state", "s_city").agg(
         F.sum("item_revenue").alias("seller_revenue"),
         F.countDistinct("order_id").alias("seller_order_count"),
@@ -287,7 +322,7 @@ def create_gold_metrics():
     write_to_gold(seller, "gold_seller_metrics", ["seller_id"])
 
     # ----- Seller theo NGÀY (nguồn cho dashboard seller theo date range) -----
-    # Doanh thu / đơn / review mức item theo seller + ngày.
+    print("   Tính gold_seller_daily (revenue / delivery per seller per day)...")
     seller_daily_rev = silver.groupBy("seller_id", "ingest_date", "date").agg(
         F.sum("item_revenue").alias("revenue"),
         F.countDistinct("order_id").alias("order_count"),
@@ -322,6 +357,7 @@ def create_gold_metrics():
     write_to_gold(seller_daily, "gold_seller_daily", ["seller_id", "ingest_date"])
 
     # ----- Top sản phẩm của seller theo NGÀY -----
+    print("   Tính gold_seller_product_daily (top products per seller per day)...")
     seller_prod_daily = silver.groupBy(
         "seller_id", "product_id", "product_category_name_english", "ingest_date", "date"
     ).agg(
@@ -341,6 +377,11 @@ def create_gold_metrics():
     # =====================================================
     # UC5 — DELIVERY
     # =====================================================
+    print("\n" + "-" * 40)
+    print("[UC5] DELIVERY: tỷ lệ giao đúng hạn / thời gian giao theo bang")
+    print("-" * 40)
+
+    print("   Tính gold_delivery_metrics (on_time_rate, avg_delivery_days per state per day)...")
     deliv = orders_g.filter(F.col("order_delivered_customer_date").isNotNull())
     deliv = deliv.withColumn(
         "delivery_days", F.datediff("order_delivered_customer_date", "purchase_ts")
@@ -364,8 +405,11 @@ def create_gold_metrics():
                              .withColumn("delivery_hotspot", F.lit(None).cast("string"))
     write_to_gold(deliv_state, "gold_delivery_metrics", ["ingest_date", "c_state"])
 
+    print("\nTạo MongoDB indexes...")
     create_gold_indexes()
-    print("🎉 Hoàn tất Gold Layer")
+    print("\n" + "=" * 50)
+    print("🎉 [GOLD] Hoàn tất Gold Layer")
+    print("=" * 50)
 
 
 # ASCENDING = 1 trong pymongo; dùng số trực tiếp để khỏi import thêm.

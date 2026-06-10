@@ -75,6 +75,7 @@ services:
       - ../data/external:/csv:ro
     networks:
       - kafka-network
+      - spark-network
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d olist" ]
       interval: 10s
@@ -130,6 +131,7 @@ services:
       - "2181:2181"
     networks:
       - kafka-network
+      - spark-network
     healthcheck:
       test: [ "CMD", "nc", "-z", "localhost", "2181" ]
       interval: 10s
@@ -157,6 +159,7 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168
     networks:
       - kafka-network
+      - spark-network
     healthcheck:
       test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
       interval: 15s
@@ -244,6 +247,8 @@ services:
       start_period: 10s
     networks:
       - minio-network
+      # Spark executor (chỉ còn spark-network) cần reach minio để đọc/ghi s3a://
+      - spark-network
     deploy:
       resources:
         limits:
@@ -471,11 +476,10 @@ services:
     ports:
       - "8082:8080" # Web UI của Spark Master
       - "7077:7077" # Port để kết nối
+    # Chỉ dùng spark-network: tránh multi-IP gây mismatch khi Spark bind RPC.
+    # minio và mongodb đều có spark-network nên executor vẫn đọc/ghi được.
     networks:
       - spark-network
-      - minio-network
-      - airflow-network
-      - kafka-network
     volumes:
       - ../spark-batch:/opt/project/spark-batch
       - ../spark-streaming:/opt/project/spark-streaming
@@ -485,6 +489,12 @@ services:
       - SPARK_EXECUTOR_MEMORY=2g
       # Cho phép import services.mongodb_connect... trong job gold
       - PYTHONPATH=/opt/project
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   spark-worker:
     build:
@@ -496,9 +506,6 @@ services:
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores 2 --memory 2g
     networks:
       - spark-network
-      - minio-network
-      - airflow-network
-      - kafka-network
     volumes:
       - ../spark-batch:/opt/project/spark-batch
       - ../spark-streaming:/opt/project/spark-streaming
@@ -508,7 +515,8 @@ services:
       - SPARK_EXECUTOR_MEMORY=2g
       - PYTHONPATH=/opt/project
     depends_on:
-      - spark-master
+      spark-master:
+        condition: service_healthy
 
   # =============================================================
   # WEB API — Phục vụ dữ liệu Sản phẩm (Tầng Gold)

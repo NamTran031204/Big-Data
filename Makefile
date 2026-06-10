@@ -20,9 +20,12 @@ STREAM_PACKAGES := org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgres
 .PHONY: help install-deps \
         docker-build docker-up docker-down seed-postgres seed-streaming-tables register-connectors \
         run-silver run-gold run-streaming airflow-trigger pipeline-docker \
+        logs-silver logs-gold \
         k8s-build-images k8s-code-configmaps k8s-up k8s-down seed-postgres-k8s \
         k8s-status k8s-test-minio k8s-test-kafka k8s-test-debezium k8s-test-postgres \
         k8s-test-mongo k8s-test-spark k8s-test-airflow k8s-test-all \
+        k8s-logs-bronze k8s-logs-silver k8s-logs-gold k8s-logs-streaming \
+        k8s-airflow-trigger \
         k8s-build-springboot k8s-deploy-springboot k8s-port-forward-local
 
 help:
@@ -39,6 +42,8 @@ help:
 	@echo "  make run-streaming       - Spark submit job Streaming user-behavior (kafka:9094)"
 	@echo "  make airflow-trigger     - Trigger DAG batch_pipeline"
 	@echo "  make pipeline-docker     - register-connectors -> silver -> gold"
+	@echo "  make logs-silver         - Xem print() silver khi chạy qua Airflow Docker"
+	@echo "  make logs-gold           - Xem print() gold khi chạy qua Airflow Docker"
 	@echo "===== KUBERNETES (minikube) ====="
 	@echo "  make k8s-build-images    - Build image custom vào minikube"
 	@echo "  make k8s-code-configmaps - Tạo configmap code (spark/services/dags/pg-init)"
@@ -47,6 +52,11 @@ help:
 	@echo "  make k8s-status          - kubectl get pods"
 	@echo "  make k8s-test-all        - Test lần lượt từng pod"
 	@echo "  make k8s-down            - Xoá namespace"
+	@echo "  make k8s-logs-bronze     - Log Debezium S3 Sink (CDC -> MinIO bronze)"
+	@echo "  make k8s-logs-silver     - Log spark-worker: job transform_bronze_to_silver"
+	@echo "  make k8s-logs-gold       - Log spark-worker: job transform_silver_to_gold"
+	@echo "  make k8s-logs-streaming  - Log spark-worker: kafka_consumer streaming (follow)"
+	@echo "  make k8s-airflow-trigger - Trigger DAG batch_pipeline trong cluster k8s"
 	@echo "===== SPRINGBOOT (k8s) ====="
 	@echo "  make k8s-build-springboot  - Build image bigdata-springboot -> minikube"
 	@echo "  make k8s-deploy-springboot - Build + apply k8s/70-springboot.yaml"
@@ -108,6 +118,17 @@ airflow-trigger:
 	docker exec -it airflow-scheduler airflow dags trigger batch_pipeline
 
 pipeline-docker: register-connectors run-silver run-gold
+
+# Log print() của Airflow task silver/gold (deploy_mode=client -> log nằm trong airflow-scheduler)
+logs-silver:
+	docker exec airflow-scheduler bash -c \
+	  "tail -f \$$(find /opt/airflow/logs/dag_id=batch_pipeline -name '*.log' -path '*/task_id=silver/*' 2>/dev/null | sort | tail -1) 2>/dev/null \
+	   || echo 'Chua co log silver. Chay: make airflow-trigger roi thu lai.'"
+
+logs-gold:
+	docker exec airflow-scheduler bash -c \
+	  "tail -f \$$(find /opt/airflow/logs/dag_id=batch_pipeline -name '*.log' -path '*/task_id=gold/*' 2>/dev/null | sort | tail -1) 2>/dev/null \
+	   || echo 'Chua co log gold. Chay: make airflow-trigger roi thu lai.'"
 
 # ---------------------------------------------------------------- k8s
 # Build image custom trực tiếp vào docker daemon của minikube
@@ -196,6 +217,32 @@ k8s-test-airflow:
 
 k8s-test-all: k8s-test-postgres k8s-test-minio k8s-test-kafka k8s-test-debezium k8s-test-mongo k8s-test-spark k8s-test-airflow
 	@echo "✅ Đã test xong các pod"
+
+# ---------- logs từng tiến trình ----------
+# Bronze: Debezium S3 Sink Connector là thành phần ingest dữ liệu vào bronze-zone.
+k8s-logs-bronze:
+	kubectl -n $(NS) logs -f -l app=debezium-connect --tail=100
+
+# Silver: deploy_mode=client -> driver chạy trong airflow-scheduler.
+# print() của Python xuất hiện trong Airflow task log, không phải spark-worker.
+# Target này exec vào scheduler và tail log file của task silver gần nhất.
+k8s-logs-silver:
+	kubectl -n $(NS) exec deploy/airflow-scheduler -- bash -c \
+	  "tail -f \$$(find /opt/airflow/logs/dag_id=batch_pipeline -name '*.log' -path '*/task_id=silver/*' 2>/dev/null | sort | tail -1) 2>/dev/null \
+	   || echo 'Chua co log silver. Chay: make airflow-trigger-k8s roi thu lai.'"
+
+# Gold: tương tự silver, deploy_mode=client -> log nằm trong airflow-scheduler.
+k8s-logs-gold:
+	kubectl -n $(NS) exec deploy/airflow-scheduler -- bash -c \
+	  "tail -f \$$(find /opt/airflow/logs/dag_id=batch_pipeline -name '*.log' -path '*/task_id=gold/*' 2>/dev/null | sort | tail -1) 2>/dev/null \
+	   || echo 'Chua co log gold. Chay: make airflow-trigger-k8s roi thu lai.'"
+
+# Streaming: kafka_consumer.py submit thẳng (không qua Airflow) -> log trên spark-worker.
+k8s-logs-streaming:
+	kubectl -n $(NS) logs -f -l app=spark-worker --tail=500
+
+k8s-airflow-trigger:
+	kubectl -n $(NS) exec deploy/airflow-scheduler -- airflow dags trigger batch_pipeline
 
 # ---------------------------------------------------------------- springboot k8s
 # Build Docker image từ SpringBoot/ rồi load vào minikube (imagePullPolicy: Never)

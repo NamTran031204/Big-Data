@@ -1,12 +1,3 @@
-# Profile: k8s-deploy
-# Spring Boot đóng gói thành image và chạy bên trong k8s pod (namespace: bigdata).
-# Profile được kích hoạt tự động qua env var SPRING_PROFILES_ACTIVE=k8s-deploy
-# trong k8s/70-springboot.yaml Deployment.
-#
-# Kết nối:
-#   PostgreSQL : postgres:5432 (ClusterIP service trong namespace bigdata)
-#   Kafka      : kafka:9094    (INTERNAL listener — dùng trong cluster để tránh
-#                               advertised EXTERNAL://localhost:9092 bị route sai)
 
 spring:
   datasource:
@@ -26,7 +17,7 @@ server:
 
 fakeoltp:
   enabled: true
-  interval-ms: 8000
+  order-interval-ms: 30000
 
 logging:
   level:

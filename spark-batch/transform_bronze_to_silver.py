@@ -91,7 +91,12 @@ def micros_to_ts(df, name):
 # Build silver
 # ==========================================================
 def process_unified_silver():
+    print("\n" + "=" * 50)
+    print("[SILVER] Bronze -> Silver bắt đầu")
+    print("=" * 50)
+
     # ---- orders (grain gốc theo đơn) ----
+    print("\n[1/8] orders: đọc + dedup CDC...")
     orders = dedup_cdc(read_bronze("orders"), ["order_id"])
     for c in [
         "order_purchase_timestamp",
@@ -102,15 +107,19 @@ def process_unified_silver():
     ]:
         orders = micros_to_ts(orders, c)
     orders = orders.withColumnRenamed("order_purchase_timestamp", "purchase_ts")
+    print(f"      -> {orders.count():,} đơn hàng")
 
     # ---- order_items (grain chính order_item) ----
+    print("\n[2/8] order_items: đọc + dedup CDC...")
     items = dedup_cdc(read_bronze("order_items"), ["order_id", "order_item_id"])
     items = micros_to_ts(items, "shipping_limit_date")
     items = items.withColumn(
         "item_revenue", F.col("price") + F.coalesce(F.col("freight_value"), F.lit(0.0))
     )
+    print(f"      -> {items.count():,} order_item rows")
 
     # ---- order_payments: GỘP về 1 dòng/đơn (tránh nhân dòng) ----
+    print("\n[3/8] order_payments: đọc + dedup + gộp 1 dòng/đơn...")
     pay = dedup_cdc(read_bronze("order_payments"), ["order_id", "payment_sequential"])
     pay_total = pay.groupBy("order_id").agg(
         F.sum("payment_value").alias("order_payment_value"),
@@ -124,20 +133,26 @@ def process_unified_silver():
         .select("order_id", F.col("payment_type").alias("payment_type"))
     )
     payments = pay_total.join(pay_dom, "order_id", "left")
+    print(f"      -> {payments.count():,} đơn (sau gộp payment)")
 
     # ---- customers ----
+    print("\n[4/8] customers: đọc + dedup CDC...")
     customers = (
         dedup_cdc(read_bronze("customers"), ["customer_id"])
         .withColumnRenamed("customer_zip_code_prefix", "c_zip")
         .withColumnRenamed("customer_city", "c_city")
         .withColumnRenamed("customer_state", "c_state")
     )
+    print(f"      -> {customers.count():,} customers")
 
     # ---- products + category ----
+    print("\n[5/8] products + category_translation: đọc + dedup CDC...")
     products = dedup_cdc(read_bronze("products"), ["product_id"])
     category = dedup_cdc(read_bronze("category_translation"), ["product_category_name"])
+    print(f"      -> {products.count():,} products | {category.count():,} categories")
 
     # ---- reviews: 1 review mới nhất/đơn ----
+    print("\n[6/8] order_reviews: đọc + lấy review mới nhất/đơn...")
     reviews_raw = read_bronze("order_reviews")
     reviews_raw = micros_to_ts(reviews_raw, "review_creation_date")
     if "__deleted" in reviews_raw.columns:
@@ -150,8 +165,10 @@ def process_unified_silver():
         .filter(F.col("__r") == 1)
         .select("order_id", "review_id", "review_score")
     )
+    print(f"      -> {reviews.count():,} reviews (1/đơn)")
 
     # ---- sellers + geolocation ----
+    print("\n[7/8] sellers + geolocation: đọc + dedup/aggregate...")
     sellers = (
         dedup_cdc(read_bronze("sellers"), ["seller_id"])
         .withColumnRenamed("seller_zip_code_prefix", "s_zip")
@@ -166,8 +183,10 @@ def process_unified_silver():
             F.avg("geolocation_lng").alias("geolocation_lng"),
         )
     )
+    print(f"      -> {sellers.count():,} sellers | {geo.count():,} zip codes (geo avg)")
 
     # ---- JOIN (broadcast các chiều nhỏ) ----
+    print("\n[8/8] JOIN hợp nhất (grain = order_item)...")
     print("--- 🔗 Join hợp nhất (grain = order_item) ---")
     silver = (
         items.join(orders, "order_id", "inner")
@@ -181,14 +200,16 @@ def process_unified_silver():
     )
 
     # ---- Data quality: bỏ dòng thiếu khoá cốt lõi ----
+    print("\nData quality check (bỏ dòng thiếu order_id / purchase_ts)...")
     before = silver.count()
     silver = silver.filter(F.col("order_id").isNotNull() & F.col("purchase_ts").isNotNull())
     after = silver.count()
-    print(f"--- 🧹 DQ: {before} -> {after} dòng (loại {before - after} thiếu order_id/purchase_ts)")
+    print(f"--- 🧹 DQ: {before:,} -> {after:,} dòng (loại {before - after:,} thiếu order_id/purchase_ts)")
 
     # ---- Ghi silver ----
+    print(f"\nGhi silver-zone: {SILVER_OUT}")
     silver.write.mode("overwrite").parquet(SILVER_OUT)
-    print(f"✅ Silver đã ghi: {SILVER_OUT}")
+    print(f"✅ Silver đã ghi: {SILVER_OUT} ({after:,} dòng)")
     silver.select(
         "order_id", "purchase_ts", "product_category_name_english",
         "item_revenue", "order_payment_value", "payment_type", "review_score",
