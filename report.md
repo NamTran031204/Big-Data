@@ -346,6 +346,17 @@ Connector được đăng ký qua REST API (`init/register-connector.sh`):
 - `snapshot.mode: initial` — chụp toàn bộ dữ liệu hiện có khi connector khởi động lần đầu, sau đó chuyển sang streaming mode.
 - `tombstones.on.delete: false` — không phát tombstone message (null value) khi DELETE, tránh lỗi S3 Sink Connector không xử lý được null payload.
 - `heartbeat.interval.ms: 10000` — gửi heartbeat 10 giây/lần để giữ replication slot không bị timed out khi không có thay đổi.
+- `topic.prefix: olist_cdc` — tiền tố cho tên topic Kafka,
+  tạo ra các topic dạng `olist_cdc.public.<tên_bảng>`.
+- `slot.name: debezium_slot` — tên replication slot trong
+  PostgreSQL. Cần nhớ tên này khi cần drop slot thủ công
+  lúc đổi config connector.
+- `publication.autocreate.mode: filtered` kết hợp với
+  `table.include.list` — chỉ theo dõi đúng 9 bảng Olist,
+  không bắt thay đổi từ các bảng hệ thống hoặc bảng
+  streaming (user_preference, user_recommendation).
+- `schema.include.list: public` — giới hạn phạm vi CDC
+  trong schema public của PostgreSQL.
 
 ### S3 Sink Connector
 
