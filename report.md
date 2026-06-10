@@ -78,6 +78,9 @@ Nếu chỉ dùng PostgreSQL hoặc một ứng dụng Python đơn lẻ:
 ### Phạm vi đã triển khai (Phase 1)
 
 - Toàn bộ Batch Layer: CDC → Bronze → Silver → Gold (3 sinks).
+- Speed Layer (Real-time Streaming): Phát triển thành công luồng xử lý dữ liệu thời gian thực sử dụng Spark Structured Streaming tích hợp Apache Kafka. Hệ thống thực hiện đón bắt dòng sự kiện hành vi người dùng (`user_behavior_events`) liên tục theo mô hình bảng không giới hạn (*Unbounded Table*), tính toán cộng dồn điểm ưa thích theo phễu chuyển đổi (VIEW, CLICK, ADD_TO_CART, PURCHASE).
+- Cơ chế Persistence kết nối PostgreSQL (foreachBatch): Xây dựng thành công kiến trúc lưu trữ đa nguồn. Kết quả tính toán từ luồng Stream được đồng bộ trực tiếp vào cơ sở dữ liệu PostgreSQL (`olist`) qua phương thức xử lý vi chuỗi `foreachBatch`, thực hiện ghi đè qua bảng staging và thực thi trigger cập nhật tự động cho hai bảng `user_preference` và `user_recommendation` (Top 10 sản phẩm gợi ý).
+- Quản lý trạng thái và chịu lỗi (MinIO Checkpointing): Đảm bảo cơ chế chịu lỗi phân tán cho luồng streaming bằng cách đồng bộ hóa toàn bộ vết xử lý (`Checkpointing`) lên **MinIO Object Storage** qua giao thức S3A (`s3a://checkpoint/...`), giải quyết triệt để bài toán xung đột tệp tin tạm trên môi trường Windows.
 - Orchestration: Airflow DAG `batch_pipeline` với 4 bước.
 - Triển khai Docker Compose (môi trường phát triển) và Kubernetes/Minikube (môi trường sản xuất giả lập).
 - 5 nhóm chỉ số Gold với tổng cộng 14 collection.
@@ -85,7 +88,6 @@ Nếu chỉ dùng PostgreSQL hoặc một ứng dụng Python đơn lẻ:
 
 ### Phạm vi chưa triển khai (Phase 2 — tương lai)
 
-- **Speed Layer (Streaming):** Spark Structured Streaming xử lý sự kiện hành vi người dùng từ Kafka, tổng hợp theo cửa sổ thời gian, ghi vào PostgreSQL (user\_preference, user\_recommendation).
 - **SpringBoot Fake Insert:** Service tự động sinh dữ liệu đơn hàng giả và sự kiện hành vi để demo CDC realtime.
 - **ML/MLlib columns:** Các chỉ số học máy trong Gold (churn\_probability, clv\_predicted, review\_sentiment, fraud\_risk\_score, predicted\_delivery\_days) hiện được để `null`.
 - **GraphFrames:** PageRank cho mạng lưới nhà bán hàng (seller\_network\_centrality, seller\_cluster).
@@ -107,9 +109,8 @@ Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (
 - Kết quả chính xác, có thể recompute từ đầu.
 - Công nghệ: Apache Spark (PySpark), MinIO, Apache Airflow.
 
-**Speed Layer (phần khung đã có, chưa hoàn thiện):**
-- Xử lý sự kiện hành vi người dùng real-time.
-- Kết quả gần đúng, độ trễ thấp (micro-batch 5 giây).
+**Speed Layer (đã triển khai đầy đủ):**
+- Xử lý dòng sự kiện biến động liên tục về hành vi tương tác của khách hàng (User-behavior events) theo thời gian thực để đưa ra phản hồi gợi ý sản phẩm ngay lập tức với độ trễ thấp (micro-batch xử lý theo cửa sổ 30 giây).
 - Công nghệ: Spark Structured Streaming, Apache Kafka.
 
 **Serving Layer:**
@@ -1036,6 +1037,77 @@ Trong môi trường phát triển, service thường xuyên restart (OOM, Docke
 - MongoDB `upsert` thay vì `insert` là default assumption cho serving layer — dữ liệu luôn được cập nhật, không bao giờ duplicate.
 - Thiết kế recovery path trước khi cần, không phải sau khi sự cố xảy ra. Câu hỏi cần tự hỏi: "Nếu bước này fail, pipeline có thể tiếp tục từ đâu?"
 
+---
+
+## Bài học 12: Xử lý luồng thời gian thực — Tối ưu hóa hiệu năng và đồng bộ hóa đa nguồn với Spark Structured Streaming
+
+### Mô tả vấn đề
+
+#### Bối cảnh và nền tảng
+Để hiện thực hóa tầng tốc độ (*Speed Layer*) trong kiến trúc Lambda, nhóm triển khai script `kafka_consumer.py` nhằm tiêu thụ liên tục dòng sự kiện hành vi người dùng (`user_behavior_events`) từ Kafka. Dữ liệu đổ về dạng chuỗi JSON thô, đòi hỏi phải parse cấu trúc, tính điểm theo phễu hành vi (View=1, Click=2, Add_to_cart=3, Purchase=5) trên cửa sổ thời gian và lưu vào PostgreSQL.
+
+#### Thách thức gặp phải
+- Việc phân tách chuỗi JSON động bằng Spark tốn rất nhiều tài nguyên CPU và dễ gây thắt nút cổ chai (processing lag) khi dữ liệu đổ về với mật độ dày đặc.
+- Hệ thống cần cập nhật đồng thời nhiều bảng logic phức tạp trong PostgreSQL (`user_preference` để cộng dồn điểm và `user_recommendation` để tính lại Top 10 sản phẩm gợi ý) cho các user vừa có biến động hành vi trong micro-batch. Phương thức `.write` thông thường của Spark không thể xử lý chuỗi logic transaction phức tạp này.
+
+#### Tác động đến hệ thống
+- Tốc độ xử lý của luồng Stream bị chậm, không đáp ứng được yêu cầu phản hồi thời gian thực dưới 30 giây của Speed Layer.
+- Gặp lỗi xung đột hoặc ghi lặp dữ liệu (duplicate) nếu hệ thống không có vùng đệm staging kiểm soát transaction khi đồng bộ sang RDBMS.
+
+### Cách tiếp cận đã thử
+
+**Cách 1:** Sử dụng các lệnh SQL thông thường để ghi trực tiếp từ Spark sang Postgres qua JDBC. Không khả thi vì JDBC mặc định của Spark chỉ hỗ trợ các thao tác cơ bản như Append/Overwrite trên một bảng duy nhất, không thể thực hiện các câu lệnh logic nâng cao như `ON CONFLICT DO UPDATE` hay `DELETE/INSERT` chuỗi bảng liên đới.
+
+**Cách 2:** Áp dụng phương thức xử lý vi chuỗi `foreachBatch` kết hợp thư viện kết nối gốc của Python (`psycopg2`).
+
+### Giải pháp cuối cùng
+
+- **Ánh xạ Schema tĩnh chặt chẽ:** Sử dụng `StructType` để định nghĩa tường minh cấu trúc gói tin `UserBehaviorEvent` ngay từ đầu, giúp Spark bóc tách JSON với tốc độ tối đa, giảm tải bước suy diễn kiểu dữ liệu tự động.
+- **Phân tách cửa sổ thời gian chuyển động:** Sử dụng hàm `to_timestamp` và cấu hình `withWatermark` quản lý trễ 2 phút, kết hợp gom nhóm `window(col("event_ts"), "30 seconds")` để tính toán gọn gàng lượng điểm ưa thích trong từng chu kỳ nhỏ.
+- **Kiến trúc Staging kết hợp Transaction Upsert:** Trong hàm `write_to_postgres`, nhóm sử dụng Spark JDBC để ghi đè nhanh dữ liệu của micro-batch hiện tại vào một bảng tạm mang tên `user_preference_staging`. Ngay sau đó, tiến trình mở một kết nối `psycopg2` duy nhất để thực thi chuỗi lệnh quản trị transaction có tính nguyên tố (Atomic):
+    1. Thực hiện `INSERT INTO ... ON CONFLICT DO UPDATE` để cộng dồn điểm từ bảng staging vào bảng chính `user_preference`.
+    2. Thực hiện xóa (`DELETE`) các bản ghi gợi ý cũ trong bảng `user_recommendation` của những user vừa có tương tác.
+    3. Áp dụng hàm cửa sổ `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY score DESC)` để tính toán và tái nạp lại Top 10 sản phẩm thuộc danh mục ưa thích mới nhất của người dùng vào bảng `user_recommendation`.
+    4. Thực hiện `TRUNCATE` dọn sạch bảng staging và `commit()` toàn bộ phiên giao dịch.
+
+### Điểm rút ra
+
+- Quy trình xử lý dữ liệu streaming cần có schema tĩnh để bảo toàn hiệu năng micro-batch trên môi trường production.
+- Phương thức `foreachBatch` kết hợp với một bảng staging trung gian là giải pháp tối ưu nhất để thực thi các logic nghiệp vụ cơ sở dữ liệu phức tạp (Upsert, Delete-Insert chuỗi) từ Spark Streaming sang hệ quản trị cơ sở dữ liệu quan hệ (RDBMS) một cách toàn vẹn.
+
+---
+
+## Bài học 13: Xử lý luồng thời gian thực — Quản lý trạng thái Checkpoint tập trung trên Data Lake MinIO qua giao thức S3A để đảm bảo tính chịu lỗi
+
+### Mô tả vấn đề
+
+#### Bối cảnh và nền tảng
+Để đảm bảo nguyên lý chịu lỗi (Fault Tolerance) và ngữ nghĩa xử lý chính xác duy nhất (*Exactly-Once Semantics*), Spark Structured Streaming bắt buộc phải sử dụng thuộc tính `checkpointLocation` để liên tục ghi nhật ký trạng thái của luồng (bao gồm thư mục chỉ mục `offsets`, tiến trình `commits` và siêu dữ liệu `metadata`).
+
+#### Thách thức gặp phải
+- Khi chạy thử nghiệm ứng dụng Consumer trên môi trường cục bộ Windows, tiến trình liên tục bị crash và ném ra ngoại lệ rào cản hệ thống `IOException`. Nguyên nhân do cơ chế khóa tệp tin (file-locking) đặc thù của Windows xung đột trực tiếp với cấu trúc I/O ghi đè liên tục của các tiến trình tiểu chuỗi Spark.
+- Hệ thống bị mất hoàn toàn trạng thái vị trí đọc tin nhắn (offset) của Kafka Consumer Group mỗi khi container hoặc ứng dụng bị khởi động lại đột ngột.
+
+#### Tác động đến hệ thống
+- Ứng dụng stream không thể vận hành ổn định quá 2 chu kỳ micro-batch.
+- Khi tiến trình bị sập, hệ thống buộc phải đọc lại dữ liệu từ đầu (`earliest`) hoặc bỏ qua dữ liệu cũ (`latest`), dẫn đến hiện tượng tính toán sai lệch, trùng lặp hoặc làm mất mát dữ liệu hành vi của người dùng.
+
+### Cách tiếp cận đã thử
+
+**Cách 1:** Cấp quyền tối đa cho các thư mục lưu tạm trên ổ đĩa vật lý của máy trạm Windows (`C:/tmp/...`). Không hiệu quả do không xử lý được tận gốc xung đột hệ điều hành của nhân Hadoop Core trên Windows.
+
+**Cách 2:** Định tuyến toàn bộ hệ thống lưu vết nhật ký xử lý lên cụm Object Storage tập trung thông qua driver S3A.
+
+### Giải pháp cuối cùng
+
+- **Kích hoạt giao thức kết nối Hadoop S3A:** Tích hợp gói thư viện AWS Core phù hợp (`org.apache.hadoop:hadoop-aws:3.3.4`) vào Spark Session, thiết lập các thuộc tính cấu hình `hadoopConfiguration` để nhận diện biến môi trường tài khoản mật khẩu tự động và kết nối trực tiếp đến tên dịch vụ lưu trữ `minio:9000` nội bộ của nhóm.
+- **Định tuyến Checkpoint tập trung:** Chuyển hướng toàn bộ đích đến của tham số `checkpointLocation` sang một bucket lưu trữ đối tượng chuyên dụng trên Data Lake thông qua đường dẫn mã hóa `s3a://checkpoint/spark_streaming_user_behavior`.
+- **Kết quả đạt được:** Giải quyết triệt để lỗi xung đột tệp tin tạm trên hệ điều hành Windows. Khi tiến trình Consumer buộc phải khởi động lại (restart/recovery), Spark tự động quét lại mốc offset gần nhất đã được ghi nhận thành công trong phân vùng `offsets` trên hệ thống MinIO để tiếp tục tiêu thụ dòng dữ liệu một cách tuần tự, bảo toàn vẹn toàn tính chịu lỗi cao cấp của hệ thống.
+
+### Điểm rút ra
+
+- Đối với các tác vụ lưu vết luồng (Checkpointing) trong xử lý dữ liệu lớn, tuyệt đối không sử dụng thư mục tạm cục bộ của máy trạm phát triển, đặc biệt là môi trường Windows.
+- Việc tận dụng hạ tầng Object Storage tương thích S3 (như MinIO) kết hợp với giao thức kết nối S3A là giải pháp tối ưu nhất để vừa đồng bộ hóa kiến trúc phân tán của nhóm, vừa loại bỏ xung đột hệ thống, đảm bảo tính nhất quán dữ liệu cho tầng Speed Layer.
 ---
 
 *Báo cáo được thực hiện trong khuôn khổ môn học IT4931 — Lưu trữ và Xử lý Dữ liệu Lớn, Trường Đại học Bách khoa Hà Nội.*
