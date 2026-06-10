@@ -4,17 +4,26 @@
 # K8s targets dùng minikube + thư mục k8s/.
 # =====================================================================
 
+ifeq ($(OS),Windows_NT)
+  DEVNULL := NUL
+else
+  DEVNULL := /dev/null
+endif
+
 NS              := bigdata
 SPARK_PACKAGES  := org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.postgresql:postgresql:42.7.3
 SILVER_APP      := /opt/project/spark-batch/transform_bronze_to_silver.py
 GOLD_APP        := /opt/project/spark-batch/transform_silver_to_gold.py
+STREAM_APP      := /opt/project/spark-streaming/kafka_consumer.py
+STREAM_PACKAGES := org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3
 
 .PHONY: help install-deps \
-        docker-build docker-up docker-down seed-postgres register-connectors \
-        run-silver run-gold airflow-trigger pipeline-docker \
+        docker-build docker-up docker-down seed-postgres seed-streaming-tables register-connectors \
+        run-silver run-gold run-streaming airflow-trigger pipeline-docker \
         k8s-build-images k8s-code-configmaps k8s-up k8s-down seed-postgres-k8s \
         k8s-status k8s-test-minio k8s-test-kafka k8s-test-debezium k8s-test-postgres \
-        k8s-test-mongo k8s-test-spark k8s-test-airflow k8s-test-all
+        k8s-test-mongo k8s-test-spark k8s-test-airflow k8s-test-all \
+        k8s-build-springboot k8s-deploy-springboot k8s-port-forward-local
 
 help:
 	@echo "===== DOCKER ====="
@@ -23,9 +32,11 @@ help:
 	@echo "  make docker-up           - Start toàn bộ stack (build nếu cần)"
 	@echo "  make docker-down         - Stop stack"
 	@echo "  make seed-postgres       - Nạp lại CSV -> Postgres (chạy 02-load.sql)"
+	@echo "  make seed-streaming-tables - Tạo bảng output streaming (04-streaming-tables.sql)"
 	@echo "  make register-connectors - Đăng ký Debezium source + S3 sink"
 	@echo "  make run-silver          - Spark submit job Silver (trong spark-master)"
 	@echo "  make run-gold            - Spark submit job Gold (3-sink)"
+	@echo "  make run-streaming       - Spark submit job Streaming user-behavior (kafka:9094)"
 	@echo "  make airflow-trigger     - Trigger DAG batch_pipeline"
 	@echo "  make pipeline-docker     - register-connectors -> silver -> gold"
 	@echo "===== KUBERNETES (minikube) ====="
@@ -36,6 +47,10 @@ help:
 	@echo "  make k8s-status          - kubectl get pods"
 	@echo "  make k8s-test-all        - Test lần lượt từng pod"
 	@echo "  make k8s-down            - Xoá namespace"
+	@echo "===== SPRINGBOOT (k8s) ====="
+	@echo "  make k8s-build-springboot  - Build image bigdata-springboot -> minikube"
+	@echo "  make k8s-deploy-springboot - Build + apply k8s/70-springboot.yaml"
+	@echo "  make k8s-port-forward-local- In lệnh port-forward cho profile k8s-local"
 
 # ---------------------------------------------------------------- local
 install-deps:
@@ -55,6 +70,11 @@ docker-down:
 seed-postgres:
 	docker exec -i bigdata-postgres psql -U postgres -d olist -f /docker-entrypoint-initdb.d/02-load.sql
 
+# Tạo bảng output của luồng streaming (user_preference / user_recommendation).
+# initdb chỉ chạy khi volume rỗng -> với stack đang chạy sẵn thì gọi target này thủ công.
+seed-streaming-tables:
+	docker exec -i bigdata-postgres psql -U postgres -d olist -f /docker-entrypoint-initdb.d/04-streaming-tables.sql
+
 register-connectors:
 	cd init && bash register-connector.sh
 	cd init && bash register-s3-sink.sh
@@ -70,6 +90,19 @@ run-gold:
 		--master spark://spark-master:7077 \
 		--packages $(SPARK_PACKAGES) \
 		$(GOLD_APP)
+
+# Streaming user-behavior -> Postgres (broker INTERNAL kafka:9094). Ctrl+C để dừng.
+# Chạy --master local[2]: driver tự chạy executor trong process ngay tại container spark-master,
+# KHÔNG chiếm spark-worker -> batch (spark://spark-master:7077) chạy song song không bị block.
+run-streaming:
+	docker exec -i \
+		-e KAFKA_BOOTSTRAP=kafka:9094 \
+		-e PG_HOST=postgres \
+		-e PG_URL=jdbc:postgresql://postgres:5432/olist \
+		spark-master /opt/spark/bin/spark-submit \
+		--master "local[2]" \
+		--packages $(STREAM_PACKAGES) \
+		$(STREAM_APP)
 
 airflow-trigger:
 	docker exec -it airflow-scheduler airflow dags trigger batch_pipeline
@@ -101,10 +134,11 @@ k8s-code-configmaps:
 	kubectl -n $(NS) create configmap pg-initdb \
 		--from-file=init/postgres-init/01-schema.sql \
 		--from-file=init/postgres-init/03-replica-identity.sql \
+		--from-file=init/postgres-init/04-streaming-tables.sql \
 		--dry-run=client -o yaml | kubectl apply -f -
 
 k8s-up:
-	minikube status >/dev/null 2>&1 || minikube start --cpus=4 --memory=8192
+	minikube status >$(DEVNULL) 2>&1 || minikube start --cpus=4 --memory=8192
 	kubectl apply -f k8s/00-namespace.yaml
 	kubectl apply -f k8s/01-secrets.yaml
 	$(MAKE) k8s-build-images
@@ -143,7 +177,7 @@ k8s-test-minio:
 	kubectl -n $(NS) exec sts/minio -- ls -1 /data && echo "MinIO OK (buckets ở trên)"
 
 k8s-test-kafka:
-	kubectl -n $(NS) exec sts/kafka -- kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null && echo "Kafka OK"
+	kubectl -n $(NS) exec sts/kafka -- kafka-broker-api-versions --bootstrap-server localhost:9092 >$(DEVNULL) && echo "Kafka OK"
 	kubectl -n $(NS) exec sts/kafka -- kafka-topics --bootstrap-server localhost:9092 --list
 
 k8s-test-debezium:
@@ -157,8 +191,29 @@ k8s-test-spark:
 	kubectl -n $(NS) exec deploy/spark-master -- sh -c "ls /opt/project/spark-batch" && echo "Spark code mounted OK"
 
 k8s-test-airflow:
-	kubectl -n $(NS) exec deploy/airflow-scheduler -- airflow jobs check --job-type SchedulerJob --hostname "$$(hostname)" || true
-	kubectl -n $(NS) exec deploy/airflow-scheduler -- airflow dags list | grep batch_pipeline && echo "DAG loaded OK"
+	-kubectl -n $(NS) exec deploy/airflow-scheduler -- airflow jobs check --job-type SchedulerJob --hostname "$$(hostname)"
+	kubectl -n $(NS) exec deploy/airflow-scheduler -- sh -c "airflow dags list | grep batch_pipeline" && echo "DAG loaded OK"
 
 k8s-test-all: k8s-test-postgres k8s-test-minio k8s-test-kafka k8s-test-debezium k8s-test-mongo k8s-test-spark k8s-test-airflow
 	@echo "✅ Đã test xong các pod"
+
+# ---------------------------------------------------------------- springboot k8s
+# Build Docker image từ SpringBoot/ rồi load vào minikube (imagePullPolicy: Never)
+k8s-build-springboot:
+	docker build -t bigdata-springboot:latest SpringBoot/
+	minikube image load bigdata-springboot:latest
+	@echo "✅ bigdata-springboot:latest loaded into minikube"
+
+# Build image + apply k8s manifest (Deployment + Service)
+k8s-deploy-springboot: k8s-build-springboot
+	kubectl apply -f k8s/70-springboot.yaml
+	@echo "✅ springboot-app deployed. Xem log: kubectl -n $(NS) logs -f deploy/springboot-app"
+
+# In ra lệnh port-forward cần chạy khi dùng profile k8s-local (code chạy local)
+k8s-port-forward-local:
+	@echo "Chạy 2 lệnh sau trong 2 terminal riêng rồi khởi động SpringBoot với profile k8s-local:"
+	@echo "  kubectl -n $(NS) port-forward svc/kafka    9092:9092"
+	@echo "  kubectl -n $(NS) port-forward svc/postgres 5433:5432"
+	@echo ""
+	@echo "Khởi động SpringBoot:"
+	@echo "  cd SpringBoot && mvn spring-boot:run -Dspring-boot.run.profiles=k8s-local"

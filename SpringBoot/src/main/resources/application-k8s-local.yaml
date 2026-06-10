@@ -1,0 +1,17 @@
+# Profile: k8s-local
+# Spring Boot chạy trên máy host, backend services chạy trong minikube (namespace: bigdata).
+#
+# Cần port-forward trước khi chạy (mỗi lệnh chạy trong terminal riêng):
+#   kubectl -n bigdata port-forward svc/kafka    9092:9092
+#   kubectl -n bigdata port-forward svc/postgres 5433:5432   # host 5433 -> pod 5432 (tránh PG native)
+#
+# Kích hoạt profile:
+#   mvn spring-boot:run -Dspring-boot.run.profiles=k8s-local
+#   hoặc: SPRING_PROFILES_ACTIVE=k8s-local mvn spring-boot:run
+
+spring:
+  datasource:
+    # Host 5433 -> pod postgres:5432 qua port-forward (tránh PG native trên 5432)
+    url: jdbc:postgresql://localhost:5433/olist
+  # kafka bootstrap-servers localhost:9092 giữ nguyên từ base config (qua port-forward)
+  # Kafka advertised EXTERNAL://localhost:9092 nên port-forward hoạt động bình thường

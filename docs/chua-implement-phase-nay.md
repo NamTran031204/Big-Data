@@ -6,31 +6,34 @@
 
 ---
 
-## 1. Luồng Streaming (Speed Layer) — HOÃN
+## 1. Luồng Streaming (Speed Layer) — ✅ ĐÃ LÀM
 
 | Hạng mục | Hiện trạng | Ghi chú |
 |---|---|---|
-| `spark-streaming/kafka_consumer.py` | Mới có code prototype (windowed revenue, ghi console) | Chưa test, chưa nằm trong luồng chạy |
-| Sink streaming → PostgreSQL | Hàm `write_to_postgres()` đang `pass` (comment) | Dự kiến phase sau |
-| Xử lý hành vi người dùng → gợi ý sản phẩm | Chưa có | Mục tiêu chính của streaming (làm sạch + recommend nhanh) |
-| `spark-streaming/producer.py` | Sinh `orders_topic` giả lập đơn giản | Chưa khớp schema hành vi người dùng thực |
-| Host/port Kafka trong streaming | `localhost:9092` (sai khi chạy trong container) | Cần đổi `kafka:9094` khi đưa vào luồng |
+| `spark-streaming/kafka_consumer.py` | ✅ Hoàn thiện: đọc `user_behavior_events`, cộng dồn điểm theo (user, category), foreachBatch → Postgres | Broker đọc từ ENV `KAFKA_BOOTSTRAP` (mặc định `kafka:9094`) |
+| Sink streaming → PostgreSQL | ✅ `write_to_postgres()`: upsert `user_preference` + tính lại `user_recommendation` | DDL: `init/postgres-init/04-streaming-tables.sql` |
+| Xử lý hành vi người dùng → gợi ý sản phẩm | ✅ eventType→điểm (VIEW/CLICK/ADD_TO_CART/PURCHASE), top-10 sản phẩm theo category ưa thích | Chiến lược category-preference |
+| Host/port Kafka trong streaming | ✅ ENV-driven; `make run-streaming` truyền `kafka:9094` | Host: `KAFKA_BOOTSTRAP=localhost:9092 PG_HOST=localhost` |
+| Stack Python cũ (`services/user_behavior/*`, `spark-streaming/producer.py`) | ❌ ĐÃ XOÁ | Sai schema (`behavior`/`score`) + sai DB (`postgres`, bảng `customer`/`product`). Luồng chuẩn: SpringBoot → `kafka_consumer.py` |
 
-**Vì sao hoãn:** user yêu cầu ưu tiên batch trước; streaming cần tối ưu độ trễ + thiết kế
-schema hành vi riêng → tách phase.
+**Cách chạy:** `make run-streaming` (cần `make seed-streaming-tables` nếu volume Postgres đã tồn tại
+từ trước; cần rebuild image spark để có `psycopg2-binary`).
 
 ---
 
-## 2. SpringBoot — fake-insert dữ liệu vào Postgres — HOÃN
+## 2. SpringBoot — fake-insert dữ liệu vào Postgres — ✅ ĐÃ LÀM
 
 | Hạng mục | Hiện trạng |
 |---|---|
-| Sinh dữ liệu giả "liên tục" insert vào Postgres (dựa trên dữ liệu thật) để CDC bắt được | **Chưa làm** |
-| Các consumer SpringBoot (`KafkaToBronzeConsumer`, `ParquetToMinioConsumer`, `OlistCdcConsumer`) | Có code nhưng **ngoài luồng batch** (batch dùng Debezium S3 Sink) |
+| Sinh dữ liệu giả "liên tục" insert vào Postgres (dựa trên product/seller thật) để CDC bắt được | ✅ `FakeOltpInsertScheduler` — mỗi `fakeoltp.interval-ms` (mặc định 8s) ghi 1 order graph: `customers` → `orders` → `order_items` (1–3 dòng) → `order_payments` qua `JdbcTemplate`, `@Transactional` |
+| Bật/tắt | `fakeoltp.enabled` (mặc định true) trong `application.yaml` / `application-k8s-deploy.yaml` |
 
-**Cơ chế nạp dữ liệu hiện tại:** import 1 lần từ CSV → Postgres bằng `init/postgres-init/*.sql`
-(initdb) hoặc `make seed-postgres` / `make seed-postgres-k8s`. Việc **insert giả liên tục** để
-demo CDC realtime sẽ làm ở phase sau (trong SpringBoot).
+**Lưu ý:** `FakeUserBehaviorScheduler` (sinh sự kiện Kafka cho streaming) và `FakeOltpInsertScheduler`
+(insert OLTP cho batch/CDC) chạy song song — bổ trợ nhau. Order giả có prefix `sim_o_` / customer `sim_c_`
+để dễ truy vết.
+
+**Cơ chế nạp dữ liệu nền:** vẫn import 1 lần từ CSV → Postgres bằng `init/postgres-init/*.sql`
+(initdb) hoặc `make seed-postgres`; fake-insert chạy thêm phía trên để demo CDC realtime.
 
 ---
 
@@ -93,8 +96,8 @@ ML/Graph cần thêm dependency (`graphframes`, mô hình huấn luyện) và kh
 
 ## 7. Thứ tự ưu tiên gợi ý cho phase sau
 
-1. **SpringBoot fake-insert → Postgres** để demo CDC realtime (đầu vào cho cả batch & streaming).
-2. **Streaming**: hoàn thiện `kafka_consumer.py` (đổi `kafka:9094`), xử lý hành vi user, sink → Postgres, gợi ý sản phẩm.
+1. ~~**SpringBoot fake-insert → Postgres** để demo CDC realtime~~ ✅ ĐÃ LÀM (xem mục 2).
+2. ~~**Streaming**: hoàn thiện `kafka_consumer.py` (đổi `kafka:9094`), xử lý hành vi user, sink → Postgres, gợi ý sản phẩm~~ ✅ ĐÃ LÀM (xem mục 1).
 3. **ML/GraphFrames Gold**: churn, CLV, ALS recommend, sentiment, PageRank, fraud, delivery prediction.
 4. **Incremental** Silver/Gold theo ngày (thay vì overwrite) + Airflow retry/alert.
 5. **Monitoring** (Grafana) + bảo mật secret + kiểm thử K8s thực tế trên minikube.

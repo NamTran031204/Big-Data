@@ -224,6 +224,8 @@ public class FakeUserBehaviorScheduler {
                 .searchTerm(null)
                 .build();
 
+        log.info("event {}: {}",userId, event);
+
         referenceDataService.sendEvent(event);
 
         // Advance cursor: dwell time (for VIEW) + inter-event gap of 2–10s

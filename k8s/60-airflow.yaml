@@ -118,7 +118,9 @@ spec:
             - configMapRef: { name: airflow-env }
           ports: [ { containerPort: 8080 } ]
           volumeMounts:
-            - { name: dags, mountPath: /opt/airflow/dags }
+            - name: dags
+              mountPath: /opt/airflow/dags/batch_pipeline_dag.py
+              subPath: batch_pipeline_dag.py
       volumes:
         - name: dags
           configMap: { name: airflow-dags, optional: true }
@@ -155,7 +157,9 @@ spec:
           envFrom:
             - configMapRef: { name: airflow-env }
           volumeMounts:
-            - { name: dags, mountPath: /opt/airflow/dags }
+            - name: dags
+              mountPath: /opt/airflow/dags/batch_pipeline_dag.py
+              subPath: batch_pipeline_dag.py
       volumes:
         - name: dags
           configMap: { name: airflow-dags, optional: true }

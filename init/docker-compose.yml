@@ -64,7 +64,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      # Host 5433 -> container 5432 (tránh đụng PostgreSQL native cài sẵn trên host ở 5432).
+      # Trong mạng Docker/k8s vẫn dùng postgres:5432 — KHÔNG đổi.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Nạp schema + dữ liệu Olist khi volume còn rỗng (chạy 1 lần)

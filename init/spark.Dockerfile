@@ -5,7 +5,7 @@
 FROM apache/spark:3.5.1
 
 USER root
-RUN pip3 install --no-cache-dir "pymongo>=4,<5" \
+RUN pip3 install --no-cache-dir "pymongo>=4,<5" "psycopg2-binary>=2.9,<3" \
     && mkdir -p /home/spark/.ivy2/cache /home/spark/.ivy2/jars \
     && chown -R spark:spark /home/spark/.ivy2
 USER spark
