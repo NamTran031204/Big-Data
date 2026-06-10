@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -214,7 +215,7 @@ public class FakeUserBehaviorScheduler {
         UserBehaviorEvent event = UserBehaviorEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .eventType(eventType)
-                .eventTime(Instant.ofEpochMilli(cursorMs[0]))
+                .eventTime(LocalDateTime.now())
                 .userId(userId)
                 .sessionId(sessionId)
                 .productId(product.getProductId())
