@@ -1,7 +1,8 @@
 from pymongo import MongoClient, UpdateOne
 from pymongo.errors import BulkWriteError
 from pymongo import ASCENDING, DESCENDING
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from typing import List, Dict, Any, Optional
 import logging
 

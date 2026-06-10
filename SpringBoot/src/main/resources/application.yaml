@@ -1,53 +1,33 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/airflow 
-    username: airflow
-    password: airflow
+    url: jdbc:postgresql://localhost:5433/olist
+    username: postgres
+    password: postgres
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
     open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  # 2. Setup MongoDB
-  mongodb:
-    uri: mongodb://127.0.0.1:27017/olist_db
-
-  # 3. Setup Kafka
   kafka:
     bootstrap-servers: localhost:9092
-    consumer:
-      group-id: olist-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
-  minio:
-    url: http://localhost:9000
-    access-key: admin
-    secret-key: password123
-    buckets:
-      bronze: bronze-zone
 
-# 4.Setup Server
 server:
-  port: 8081
+  port: 8085
 
-# 5. SetupLogging
+fakeoltp:
+  enabled: true
+  order-interval-ms: 30000
+
 logging:
   level:
     root: INFO
-    "[org.springframework.data.mongodb]": DEBUG
     "[org.springframework.kafka]": INFO
-eureka:
-  client:
-    enabled: false
-    register-with-eureka: false
-    fetch-registry: false

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -16,7 +17,7 @@ public class UserBehaviorEvent {
 
     private String eventType;
 
-    private Instant eventTime;
+    private LocalDateTime eventTime;
 
     private String userId;
 

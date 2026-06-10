@@ -1,0 +1,18 @@
+# Profile này dùng khi chạy Spring Boot TRỰC TIẾP trên máy host (không docker/k8s),
+# kết nối vào Postgres và Kafka đang chạy trong k8s (minikube) qua port-forward.
+#
+# Cần chạy trước (mỗi lệnh 1 terminal riêng):
+#   kubectl -n bigdata port-forward svc/postgres 5433:5432
+#   kubectl -n bigdata port-forward svc/kafka    9092:9092
+#
+# Khởi động:
+#   cd SpringBoot && mvn spring-boot:run -Dspring-boot.run.profiles=k8s-local
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/olist
+    username: postgres
+    password: postgres
+  kafka:
+    # Kafka k8s dùng EXTERNAL://localhost:9092 làm advertised listener -> port-forward hoạt động
+    bootstrap-servers: localhost:9092

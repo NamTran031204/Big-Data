@@ -1,0 +1,55 @@
+# SpringBoot user-behavior event generator
+# Build & deploy: make k8s-deploy-springboot
+# Profile k8s-deploy được kích hoạt qua env SPRING_PROFILES_ACTIVE
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-app
+  namespace: bigdata
+  labels:
+    app: springboot-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: springboot-app
+  template:
+    metadata:
+      labels:
+        app: springboot-app
+    spec:
+      containers:
+        - name: springboot-app
+          image: bigdata-springboot:latest
+          # Never: dùng image đã load vào minikube, không pull từ remote
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8085
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: k8s-deploy
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: springboot-app
+  namespace: bigdata
+spec:
+  selector:
+    app: springboot-app
+  ports:
+    - port: 8085
+      targetPort: 8085
+  type: ClusterIP

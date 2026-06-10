@@ -18,9 +18,4 @@ public class BigDataApplication {
 		SpringApplication.run(BigDataApplication.class, args);
 	}
 
-	// Bean dùng để ép kiểu Object sang JSON (Của nhánh bạn làm)
-	@Bean
-	public ObjectMapper objectMapper() {
-		return new ObjectMapper();
-	}
 }

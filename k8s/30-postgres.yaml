@@ -1,0 +1,68 @@
+# PostgreSQL OLTP (olist) — wal_level=logical cho Debezium.
+# Schema + replica identity nạp qua configMap `pg-initdb` (tạo bằng Makefile:
+# chỉ gồm 01-schema.sql + 03-replica-identity.sql, KHÔNG có 02-load.sql vì
+# trong k8s dữ liệu CSV được nạp riêng bằng `make seed-postgres-k8s`).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: bigdata
+  labels: { app: postgres }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          args:
+            - "postgres"
+            - "-c"
+            - "wal_level=logical"
+            - "-c"
+            - "max_replication_slots=5"
+            - "-c"
+            - "max_wal_senders=5"
+          ports:
+            - { containerPort: 5432 }
+          envFrom:
+            - secretRef: { name: postgres-secret }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "olist"] }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - { name: pg-data, mountPath: /var/lib/postgresql/data }
+            - { name: pg-initdb, mountPath: /docker-entrypoint-initdb.d }
+      volumes:
+        - name: pg-data
+          persistentVolumeClaim: { claimName: postgres-pvc }
+        - name: pg-initdb
+          configMap:
+            name: pg-initdb
+            optional: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: bigdata
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 3Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: bigdata
+spec:
+  selector: { app: postgres }
+  ports:
+    - { port: 5432, targetPort: 5432 }
+  type: ClusterIP
