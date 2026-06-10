@@ -475,6 +475,7 @@ services:
       - spark-network
       - minio-network
       - airflow-network
+      - kafka-network
     volumes:
       - ../spark-batch:/opt/project/spark-batch
       - ../spark-streaming:/opt/project/spark-streaming
@@ -497,6 +498,7 @@ services:
       - spark-network
       - minio-network
       - airflow-network
+      - kafka-network
     volumes:
       - ../spark-batch:/opt/project/spark-batch
       - ../spark-streaming:/opt/project/spark-streaming
