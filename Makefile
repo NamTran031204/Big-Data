@@ -262,6 +262,26 @@ k8s-deploy-streaming:
 k8s-airflow-trigger:
 	kubectl -n $(NS) exec deploy/airflow-scheduler -- airflow dags trigger batch_pipeline
 
+# Nạp lại code (configmap) + restart pod để mount file mới (vd thêm checkpoint.py).
+# ConfigMap mount kiểu thư mục tự sync sau ~1 phút; restart cho chắc + tức thì.
+k8s-reload-code:
+	$(MAKE) k8s-code-configmaps
+	kubectl -n $(NS) rollout restart deploy/airflow-scheduler deploy/airflow-webserver deploy/spark-master deploy/spark-worker
+	@echo "Code reloaded. Cho pod Ready: kubectl -n $(NS) get pods -w"
+
+# Chạy Silver/Gold TRỰC TIẾP trên k8s (client-mode, exec vào pod spark-master) — không qua
+# Airflow. Tiện test nhanh vòng incremental. MINIO endpoint mặc định (http://minio:9000) đã
+# đúng trên k8s; Gold cần override MONGO_LOCAL_URI -> service 'mongodb' của k8s.
+k8s-run-silver:
+	kubectl -n $(NS) exec deploy/spark-master -- /opt/spark/bin/spark-submit \
+	  --master spark://spark-master:7077 --packages $(SPARK_PACKAGES) $(SILVER_APP)
+
+k8s-run-gold:
+	kubectl -n $(NS) exec deploy/spark-master -- env \
+	  MONGO_LOCAL_URI='mongodb://admin:admin123456@mongodb:27017/?authSource=admin' MONGO_DB=olist_gold \
+	  /opt/spark/bin/spark-submit \
+	  --master spark://spark-master:7077 --packages $(SPARK_PACKAGES) $(GOLD_APP)
+
 # ---------------------------------------------------------------- springboot k8s
 # Build Docker image từ SpringBoot/ rồi load vào minikube (imagePullPolicy: Never)
 k8s-build-springboot:

@@ -12,10 +12,16 @@ không hardcode secret trong code.
 """
 
 import os
+import sys
+
+# spark-batch không nằm trên PYTHONPATH -> thêm dir script để import checkpoint cạnh bên
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 
 from services.mongodb_connect.mongo_connector import MongoConnector
+from checkpoint import read_watermark, write_watermark
 
 # ==========================================================
 # Cấu hình
@@ -32,6 +38,9 @@ MONGO_ATLAS_URI = os.environ.get("MONGO_ATLAS_URI", "").strip()
 
 SILVER_IN = "s3a://silver-zone/olist_unified_silver/"
 GOLD_BASE = "s3a://gold-zone"
+# Watermark incremental: chỉ chạy Gold khi Silver đã tiến watermark
+SILVER_CKPT = "s3a://checkpoint/silver_watermark"
+GOLD_CKPT = "s3a://checkpoint/gold_watermark"
 
 spark = (
     SparkSession.builder.appName("Olist_Silver_To_Gold")
@@ -442,7 +451,16 @@ def create_gold_indexes():
 
 if __name__ == "__main__":
     try:
-        create_gold_metrics()
+        silver_wm = read_watermark(spark, SILVER_CKPT)
+        gold_wm = read_watermark(spark, GOLD_CKPT)
+        if silver_wm is not None and silver_wm == gold_wm:
+            print(f"⏭️  Gold đã ở watermark mới nhất (__ts_ms={gold_wm}) -> bỏ qua Gold")
+        else:
+            create_gold_metrics()
+            # Ghi gold watermark = silver watermark SAU KHI gold xong (fail -> không tiến)
+            if silver_wm is not None:
+                write_watermark(spark, GOLD_CKPT, silver_wm)
+                print(f"✅ Watermark Gold tiến tới __ts_ms = {silver_wm}")
     finally:
         for _label, _conn in SINKS:
             _conn.close()

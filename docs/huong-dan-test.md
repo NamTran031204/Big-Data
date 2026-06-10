@@ -254,6 +254,65 @@ Mở `docs/data-view/gold-data-requirment.md` và xác nhận từng metric SQL 
 
 ---
 
+### A9. Test cơ chế INCREMENTAL theo CDC (watermark `__ts_ms`)
+
+Silver/Gold chỉ xử lý **đơn hàng thay đổi** kể từ lần chạy trước. Watermark =
+`max(__ts_ms)` lưu ở `s3a://checkpoint/{silver,gold}_watermark` (chi tiết:
+`docs/plan/plan_process_newest_data.md`, code `spark-batch/checkpoint.py`).
+
+**Bước 1 — Chạy lần đầu (full + tạo watermark):**
+```bash
+make run-silver && make run-gold
+# Xem watermark đã ghi (silver_watermark == gold_watermark):
+docker run --rm --network init_minio-network minio/mc sh -c \
+  "mc alias set m http://minio:9000 minioadmin minioadmin123456 && \
+   echo -n 'silver: ' && mc cat m/checkpoint/silver_watermark/*.json && \
+   echo -n 'gold:   ' && mc cat m/checkpoint/gold_watermark/*.json"
+```
+**Đúng khi:** 2 file JSON `{"ts_ms": ...}` với cùng giá trị.
+
+**Bước 2 — Chạy lại khi KHÔNG có data mới (idempotent skip):**
+```bash
+make run-silver   # log: "⏭️  Không có dữ liệu mới (CDC) ... -> bỏ qua Silver"
+make run-gold     # log: "⏭️  Gold đã ở watermark mới nhất ... -> bỏ qua Gold"
+```
+**Đúng khi:** không ghi lại silver; document count trong Mongo không đổi.
+
+**Bước 3 — Thêm 1 đơn mới vào Postgres (giả lập nguồn OLTP có data mới):**
+```bash
+docker exec -i bigdata-postgres psql -U postgres -d olist -c "
+  INSERT INTO orders(order_id, customer_id, order_status, order_purchase_timestamp)
+    VALUES ('test_inc_001', (SELECT customer_id FROM customers LIMIT 1), 'delivered', now());
+  INSERT INTO order_items(order_id, order_item_id, product_id, seller_id, price, freight_value)
+    VALUES ('test_inc_001', 1, (SELECT product_id FROM products LIMIT 1),
+            (SELECT seller_id FROM sellers LIMIT 1), 100.0, 10.0);
+  INSERT INTO order_payments(order_id, payment_sequential, payment_type, payment_installments, payment_value)
+    VALUES ('test_inc_001', 1, 'credit_card', 1, 110.0);"
+```
+Chờ ~60s để Debezium → S3 Sink flush bronze (`rotate.schedule.interval.ms=60s`). Kiểm tra
+bronze có file mới (tuỳ chọn): `docker exec bigdata-minio-server ls /data/bronze-zone/cdc/olist_cdc.public.orders/`.
+
+**Bước 4 — Chạy incremental:**
+```bash
+make run-silver   # log: "-> 1 order_id thay đổi -> chỉ rebuild ..."; watermark tiến lên
+make run-gold     # recompute + upsert; gold watermark = silver watermark mới
+```
+**Đúng khi:**
+- Silver tổng số dòng tăng đúng số item của đơn mới (các đơn cũ KHÔNG mất).
+- Mongo `gold_revenue_metrics` ngày hôm nay tăng thêm doanh thu của đơn mới.
+```bash
+docker exec -it bigdata-mongodb mongosh -u admin -p admin123456 --authenticationDatabase admin --quiet --eval '
+  const db = db.getSiblingDB("olist_gold");
+  printjson(db.gold_revenue_metrics.find().sort({ingest_date:-1}).limit(1).toArray());'
+```
+
+**Bước 5 — Idempotency:** chạy lại `make run-silver && make run-gold` ngay → cả hai **skip**.
+
+> **Ghi chú:** lọc `__ts_ms > watermark` nên update đến trễ cùng mili-giây ranh giới có thể bị bỏ
+> (rủi ro nhỏ). Update đơn cũ (đổi status/payment) vẫn được bắt vì đơn đó vào `affected_ids`.
+
+---
+
 ## PHẦN B — TEST TRÊN KUBERNETES (minikube)
 
 > **Khác Docker Compose:** Airflow chạy **LocalExecutor + `deploy_mode="client"`**, nên
@@ -292,6 +351,9 @@ Mở `docs/data-view/gold-data-requirment.md` và xác nhận từng metric SQL 
 make k8s-up            # start minikube + build image + tạo configmap code + apply manifests
 make k8s-status        # liệt kê pod
 kubectl -n bigdata get pods -w   # chờ tới khi tất cả READY (Ctrl-C để thoát)
+
+# sau khi các pod lên hết
+make k8s-register-connectors
 ```
 
 > Một pod ở trạng thái `Init:0/1` nghĩa là đang chờ phụ thuộc (đúng thiết kế). Xem pod nào
@@ -377,7 +439,65 @@ kubectl -n bigdata exec sts/mongodb -- mongosh -u admin -p admin123456 \
     db.getCollectionNames().forEach(c => print(c, db[c].countDocuments()));'
 ```
 
-### B7. Dọn dẹp
+### B7. Test cơ chế INCREMENTAL trên k8s (CDC watermark)
+
+Giống PHẦN A mục **A9** nhưng chạy trong cluster. Watermark lưu ở `s3a://checkpoint/{silver,gold}_watermark`
+(bucket `checkpoint` đã được Job `minio-init-buckets` tạo).
+
+> **Bắt buộc lần đầu sau khi thêm `checkpoint.py`:** nạp lại configmap code + restart pod để
+> file mới được mount vào `/opt/project/spark-batch`:
+> ```bash
+> make k8s-reload-code     # = k8s-code-configmaps + rollout restart airflow/spark pods
+> kubectl -n bigdata get pods -w   # chờ Ready lại
+> ```
+
+**Cách chạy job trên k8s** — chọn 1 trong 2:
+- **Qua Airflow** (đúng luồng production): `make k8s-airflow-trigger` (chạy cả silver+gold).
+- **Trực tiếp** (test nhanh từng bước, exec vào spark-master): `make k8s-run-silver` / `make k8s-run-gold`.
+
+**Bước 1 — chạy lần đầu + kiểm tra watermark:**
+```bash
+make k8s-run-silver && make k8s-run-gold
+# Xem watermark (silver == gold):
+kubectl -n bigdata exec sts/minio -- sh -c \
+  'cat /data/checkpoint/silver_watermark/*.json; echo; cat /data/checkpoint/gold_watermark/*.json'
+```
+
+**Bước 2 — chạy lại khi KHÔNG có data mới (skip):**
+```bash
+make k8s-run-silver   # log: "⏭️  Không có dữ liệu mới (CDC) ... -> bỏ qua Silver"
+make k8s-run-gold     # log: "⏭️  Gold đã ở watermark mới nhất ... -> bỏ qua Gold"
+```
+
+**Bước 3 — thêm đơn mới vào Postgres trong cluster:**
+```bash
+kubectl -n bigdata exec deploy/postgres -- psql -U postgres -d olist -c "
+  INSERT INTO orders(order_id, customer_id, order_status, order_purchase_timestamp)
+    VALUES ('test_inc_k8s_001', (SELECT customer_id FROM customers LIMIT 1), 'delivered', now());
+  INSERT INTO order_items(order_id, order_item_id, product_id, seller_id, price, freight_value)
+    VALUES ('test_inc_k8s_001', 1, (SELECT product_id FROM products LIMIT 1),
+            (SELECT seller_id FROM sellers LIMIT 1), 100.0, 10.0);
+  INSERT INTO order_payments(order_id, payment_sequential, payment_type, payment_installments, payment_value)
+    VALUES ('test_inc_k8s_001', 1, 'credit_card', 1, 110.0);"
+```
+Chờ ~60s để S3 Sink flush bronze.
+
+**Bước 4 — chạy incremental + kiểm chứng:**
+```bash
+make k8s-run-silver   # log: "-> 1 order_id thay đổi -> chỉ rebuild ..."; watermark tiến lên
+make k8s-run-gold     # recompute + upsert
+kubectl -n bigdata exec sts/mongodb -- mongosh -u admin -p admin123456 \
+  --authenticationDatabase admin --quiet --eval '
+    printjson(db.getSiblingDB("olist_gold").gold_revenue_metrics.find().sort({ingest_date:-1}).limit(1).toArray());'
+```
+**Đúng khi:** đơn mới xuất hiện trong gold; các đơn cũ KHÔNG mất; chạy lại lần nữa → cả hai skip.
+
+> **Lỗi thường gặp trên k8s:**
+> - `ModuleNotFoundError: checkpoint` → chưa `make k8s-reload-code` (configmap cũ chưa có `checkpoint.py`).
+> - Gold ghi nhầm Mongo `bigdata-mongodb` → chạy bằng `make k8s-run-gold` (đã set `MONGO_LOCAL_URI`
+>   trỏ service `mongodb`); nếu chạy tay, nhớ truyền env này. Qua Airflow thì `airflow-env` đã có sẵn.
+
+### B8. Dọn dẹp
 ```bash
 make k8s-down
 ```

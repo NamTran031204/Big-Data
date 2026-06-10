@@ -62,7 +62,7 @@ ML/Graph cần thêm dependency (`graphframes`, mô hình huấn luyện) và kh
 | Sensor chờ Bronze | Best-effort (dùng boto3 nếu có, không thì bỏ qua) — **chưa phải sensor chặt** |
 | Retry/alerting/SLA, email notification | Chưa cấu hình |
 | DAG cho streaming / ML | Chưa có |
-| Backfill / partition theo ngày (incremental) | Silver/Gold đang `overwrite` toàn bộ, **chưa incremental** |
+| Incremental theo CDC | ✅ Đã làm — watermark `max(__ts_ms)` lưu ở `s3a://checkpoint/`; Silver chỉ rebuild các `order_id` thay đổi rồi merge, Gold chỉ chạy khi Silver tiến watermark (xem `spark-batch/checkpoint.py`). Còn lại: backfill/partition theo ngày, Airflow retry/alert/SLA. |
 
 ---
 
@@ -99,5 +99,5 @@ ML/Graph cần thêm dependency (`graphframes`, mô hình huấn luyện) và kh
 1. ~~**SpringBoot fake-insert → Postgres** để demo CDC realtime~~ ✅ ĐÃ LÀM (xem mục 2).
 2. ~~**Streaming**: hoàn thiện `kafka_consumer.py` (đổi `kafka:9094`), xử lý hành vi user, sink → Postgres, gợi ý sản phẩm~~ ✅ ĐÃ LÀM (xem mục 1).
 3. **ML/GraphFrames Gold**: churn, CLV, ALS recommend, sentiment, PageRank, fraud, delivery prediction.
-4. **Incremental** Silver/Gold theo ngày (thay vì overwrite) + Airflow retry/alert.
+4. ~~**Incremental** Silver/Gold (thay vì overwrite)~~ ✅ ĐÃ LÀM (watermark CDC `__ts_ms`). Còn lại: backfill/partition theo ngày + Airflow retry/alert.
 5. **Monitoring** (Grafana) + bảo mật secret + kiểm thử K8s thực tế trên minikube.
