@@ -1,24 +1,5 @@
 """
 Speed layer — User-behavior streaming consumer.
-
-Đọc topic `user_behavior_events` (do SpringBoot FakeUserBehaviorScheduler sinh ra),
-cộng dồn điểm ưa thích theo (userId, category) trên cửa sổ 30s, rồi qua foreachBatch:
-  1) upsert vào user_preference  (cộng dồn điểm),
-  2) tính lại user_recommendation (top-10 sản phẩm trong các category ưa thích) cho user vừa đổi.
-
-Cấu hình qua ENV (mặc định = chạy TRONG container spark, broker INTERNAL kafka:9094):
-  KAFKA_BOOTSTRAP   mặc định "kafka:9094"     (chạy trên host Windows: "localhost:9092")
-  PG_HOST           mặc định "postgres"       (chạy trên host: "localhost")  -> dùng cho psycopg2
-  PG_PORT           mặc định "5432"           (chạy trên host: "5433" — host map 5433->container 5432)
-  PG_URL            mặc định "jdbc:postgresql://postgres:5432/olist"          -> dùng cho JDBC staging
-  PG_USER/PG_PASSWORD  mặc định postgres/postgres
-  CHECKPOINT        mặc định "/tmp/ckpt_user_behavior"
-  DEBUG_CONSOLE     "1" để bật thêm các query in console (mặc định tắt)
-
-Submit trong container (xem `make run-streaming`):
-  spark-submit --master spark://spark-master:7077 \
-    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3 \
-    /opt/project/spark-streaming/kafka_consumer.py
 """
 import os
 import sys
@@ -26,7 +7,7 @@ import sys
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import (
     from_json, col, window, to_timestamp, count,
-    when, lit, sum as _sum, max as _max,
+    when, lit, sum as _sum, max as _max, expr,
 )
 from pyspark.sql.types import StructType, StringType, LongType
 
@@ -43,7 +24,6 @@ CHECKPOINT      = os.environ.get("CHECKPOINT", "/tmp/ckpt_user_behavior")
 DEBUG_CONSOLE   = os.environ.get("DEBUG_CONSOLE", "0") == "1"
 
 # Chạy trên host Windows cần PYSPARK python + driver host loopback.
-# Trong container thì các biến này thừa nhưng vô hại.
 os.environ.setdefault("PYSPARK_PYTHON", sys.executable)
 os.environ.setdefault("PYSPARK_DRIVER_PYTHON", sys.executable)
 
@@ -52,7 +32,8 @@ _builder = (
     .appName("UserBehavior_Consumer")
     .config("spark.sql.session.timeZone", "Asia/Ho_Chi_Minh")
 )
-# Khi chạy local (host), packages chưa được truyền qua spark-submit -> set ở đây.
+
+# Khi chạy local (host)
 if os.environ.get("LOCAL_RUN", "0") == "1":
     _builder = (
         _builder
@@ -66,7 +47,7 @@ if os.environ.get("LOCAL_RUN", "0") == "1":
 spark = _builder.getOrCreate()
 spark.sparkContext.setLogLevel("WARN")
 
-# ── Schema khớp với UserBehaviorEvent (Jackson camelCase, eventTime là ISO string) ──
+# ── Schema khớp với UserBehaviorEvent ──
 user_behavior_schema = StructType() \
     .add("eventId",     StringType()) \
     .add("eventType",   StringType()) \
@@ -86,6 +67,8 @@ raw_df = spark.readStream \
     .option("subscribe", "user_behavior_events") \
     .option("startingOffsets", "latest") \
     .load()
+
+print(f"Du lieu kafka {raw_df}", flush=True)
 
 # ── Parse JSON ───────────────────────────────────────────────────────────────────
 parsed_df = raw_df \
@@ -108,7 +91,7 @@ parsed_df = raw_df \
     ) \
     .filter(col("userId").isNotNull() & col("category").isNotNull())
 
-# ── eventType -> điểm ưa thích (funnel: VIEW < CLICK < ADD_TO_CART < PURCHASE) ──────
+# ── eventType -> điểm ưa thích ──
 score_expr = (
     when(col("eventType") == "VIEW", lit(1))
     .when(col("eventType") == "CLICK", lit(2))
@@ -117,9 +100,25 @@ score_expr = (
     .otherwise(lit(0))
 )
 
+# Xử lý eventTime: ISO string hoặc JSON array [y,M,d,H,m,s,ns]
+ts_expr = (
+    when(col("eventTime").startswith("["), 
+        expr("""
+            make_timestamp(
+                cast(split(trim('[]' from eventTime), ',')[0] as int),
+                cast(split(trim('[]' from eventTime), ',')[1] as int),
+                cast(split(trim('[]' from eventTime), ',')[2] as int),
+                cast(split(trim('[]' from eventTime), ',')[3] as int),
+                cast(split(trim('[]' from eventTime), ',')[4] as int),
+                cast(split(trim('[]' from eventTime), ',')[5] as double)
+            )
+        """)
+    ).otherwise(to_timestamp(col("eventTime")))
+)
+
 preference_df = (
     parsed_df
-    .withColumn("event_ts", to_timestamp(col("eventTime")))
+    .withColumn("event_ts", ts_expr)
     .withColumn("score", score_expr)
     .withWatermark("event_ts", "2 minutes")
     .groupBy(
@@ -130,14 +129,10 @@ preference_df = (
     .agg(_sum("score").alias("total_score"))
 )
 
-
-# ════════════════════════════════════════════════════════════════════════════════
-# Sink Postgres: upsert user_preference + tính lại user_recommendation (top-10).
-# Logic port từ services/user_behavior/kafka_to_console.py, sửa cho schema thật
-# (DB olist, bảng products / product_category_name).
-# ════════════════════════════════════════════════════════════════════════════════
 def write_to_postgres(batch_df: DataFrame, batch_id: int):
-    # Gom về (user_id, category) trong batch, lấy mốc thời gian cuối cửa sổ.
+    print(f"\n>>> start write_to_postgres batch {batch_id}", flush=True)
+    
+    # Gom về (user_id, category)
     result_df = (
         batch_df
         .select(
@@ -149,11 +144,13 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
         .groupBy("user_id", "category")
         .agg(_sum("score").alias("score"), _max("updated_at").alias("updated_at"))
     )
-
-    if result_df.rdd.isEmpty():
+    
+    # Kiểm tra rỗng bằng count() thay vì rdd.isEmpty()
+    if batch_df.limit(1).count() == 0:
+        print(f"Batch {batch_id} is empty, skipping.", flush=True)
         return
 
-    # 1) Ghi đè staging mỗi batch qua JDBC.
+    print(f"Batch {batch_id}: writing {result_df.count()} rows to staging...", flush=True)
     result_df.write \
         .format("jdbc") \
         .option("url", PG_URL) \
@@ -164,6 +161,7 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
         .mode("overwrite") \
         .save()
 
+    print(f"Batch {batch_id}: connecting to Postgres for upsert...", flush=True)
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT, dbname="olist",
         user=PG_USER, password=PG_PASSWORD,
@@ -219,7 +217,7 @@ def write_to_postgres(batch_df: DataFrame, batch_id: int):
 
         conn.commit()
         cur.close()
-        print(f"[user_behavior] batch {batch_id} đã ghi Postgres xong.")
+        print(f"[user_behavior] batch {batch_id} completed.", flush=True)
     finally:
         conn.close()
 
@@ -233,10 +231,9 @@ query = (
     .start()
 )
 
-# ── Query debug (tùy chọn, bật bằng DEBUG_CONSOLE=1) ────────────────────────────────
 if DEBUG_CONSOLE:
     parsed_df \
-        .withColumn("event_ts", to_timestamp(col("eventTime"))) \
+        .withColumn("event_ts", ts_expr) \
         .groupBy(window(col("event_ts"), "30 seconds"), col("eventType")) \
         .agg(count("*").alias("cnt")) \
         .writeStream \
