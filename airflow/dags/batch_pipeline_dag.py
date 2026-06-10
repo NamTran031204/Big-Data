@@ -8,7 +8,11 @@ Luồng:
   PUT config tới Kafka Connect REST). Nếu đã có thì cập nhật/không đổi.
 - wait_bronze: kiểm tra MinIO bronze-zone đã có dữ liệu parquet (best-effort).
 - silver/gold: SparkSubmitOperator submit job tới spark://spark-master:7077
-  (deploy-mode cluster: driver chạy trong cluster -> nối được Kafka/MinIO/Mongo).
+  (deploy-mode client: spark-submit + driver chạy NGAY trong pod airflow-scheduler,
+  executor chạy trên spark-worker). Vì driver ở trong pod airflow nên pod này phải có
+  sẵn code tại /opt/project (spark-batch + services), nạp qua configMap
+  spark-batch-code/services-code (xem k8s/60-airflow.yaml). Driver nối được
+  MinIO/Mongo; executor đọc/ghi MinIO qua cấu hình s3a truyền từ driver.
 
 Dùng TaskFlow API (@dag / @task) theo yêu cầu.
 """

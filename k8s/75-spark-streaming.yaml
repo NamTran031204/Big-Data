@@ -1,0 +1,54 @@
+# Spark Streaming — kafka_consumer.py (speed layer)
+# Chạy --master local[2]: driver + executor trong cùng pod,
+# không chiếm spark-worker -> batch pipeline chạy song song.
+# Deploy riêng: kubectl apply -f k8s/75-spark-streaming.yaml
+# Hoặc: make k8s-deploy-streaming
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-streaming
+  namespace: bigdata
+  labels: { app: spark-streaming }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: spark-streaming }
+  template:
+    metadata:
+      labels: { app: spark-streaming }
+    spec:
+      initContainers:
+        - name: wait-kafka
+          image: busybox
+          command: ['sh', '-c', 'until nc -z kafka 9094; do echo wait-kafka; sleep 3; done']
+        - name: wait-postgres
+          image: busybox
+          command: ['sh', '-c', 'until nc -z postgres 5432; do echo wait-postgres; sleep 3; done']
+      containers:
+        - name: streaming
+          image: bigdata-spark:3.5.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - /opt/spark/bin/spark-submit
+            - --master
+            - local[2]
+            - --packages
+            - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgresql:postgresql:42.7.3
+            - /opt/project/spark-streaming/kafka_consumer.py
+          env:
+            - { name: KAFKA_BOOTSTRAP, value: "kafka:9094" }
+            - { name: PG_HOST,         value: "postgres" }
+            - { name: PG_PORT,         value: "5432" }
+            - { name: PG_URL,          value: "jdbc:postgresql://postgres:5432/olist" }
+            - { name: PG_USER,         value: "postgres" }
+            - { name: PG_PASSWORD,     value: "postgres" }
+            - { name: CHECKPOINT,      value: "/tmp/ckpt_user_behavior" }
+            - { name: PYTHONPATH,      value: "/opt/project" }
+          resources:
+            requests: { memory: "1Gi", cpu: "500m" }
+            limits:   { memory: "3Gi", cpu: "2" }
+          volumeMounts:
+            - { name: streaming-code, mountPath: /opt/project/spark-streaming }
+      volumes:
+        - name: streaming-code
+          configMap: { name: spark-streaming-code, optional: true }

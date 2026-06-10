@@ -28,7 +28,7 @@ MONGO_DB = os.environ.get("MONGO_DB", "olist_gold")
 MONGO_LOCAL_URI = os.environ.get(
     "MONGO_LOCAL_URI", "mongodb://admin:admin123456@bigdata-mongodb:27017/?authSource=admin"
 )
-MONGO_ATLAS_URI = os.environ.get("MONGO_ATLAS_URI", "mongodb+srv://tpnam1w3_db_user:tpnam1w3_db_user@bigdata.ztuwyz6.mongodb.net/?appName=bigdata").strip()
+MONGO_ATLAS_URI = os.environ.get("MONGO_ATLAS_URI", "").strip()
 
 SILVER_IN = "s3a://silver-zone/olist_unified_silver/"
 GOLD_BASE = "s3a://gold-zone"

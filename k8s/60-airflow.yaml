@@ -81,7 +81,12 @@ spec:
   backoffLimit: 5
   template:
     spec:
+      enableServiceLinks: false
       restartPolicy: OnFailure
+      initContainers:
+        - name: wait-airflow-postgres
+          image: busybox
+          command: ['sh', '-c', 'until nc -z airflow-postgres 5432; do echo wait-pg; sleep 3; done']
       containers:
         - name: init
           image: bigdata-airflow:2.11.2
@@ -109,6 +114,11 @@ spec:
     metadata:
       labels: { app: airflow-webserver }
     spec:
+      enableServiceLinks: false
+      initContainers:
+        - name: wait-airflow-postgres
+          image: busybox
+          command: ['sh', '-c', 'until nc -z airflow-postgres 5432; do echo wait-pg; sleep 3; done']
       containers:
         - name: webserver
           image: bigdata-airflow:2.11.2
@@ -121,9 +131,15 @@ spec:
             - name: dags
               mountPath: /opt/airflow/dags/batch_pipeline_dag.py
               subPath: batch_pipeline_dag.py
+            - { name: spark-batch-code, mountPath: /opt/project/spark-batch }
+            - { name: services-code,    mountPath: /opt/project/services/mongodb_connect }
       volumes:
         - name: dags
           configMap: { name: airflow-dags, optional: true }
+        - name: spark-batch-code
+          configMap: { name: spark-batch-code, optional: true }
+        - name: services-code
+          configMap: { name: services-code, optional: true }
 ---
 apiVersion: v1
 kind: Service
@@ -149,6 +165,11 @@ spec:
     metadata:
       labels: { app: airflow-scheduler }
     spec:
+      enableServiceLinks: false
+      initContainers:
+        - name: wait-airflow-postgres
+          image: busybox
+          command: ['sh', '-c', 'until nc -z airflow-postgres 5432; do echo wait-pg; sleep 3; done']
       containers:
         - name: scheduler
           image: bigdata-airflow:2.11.2
@@ -160,6 +181,12 @@ spec:
             - name: dags
               mountPath: /opt/airflow/dags/batch_pipeline_dag.py
               subPath: batch_pipeline_dag.py
+            - { name: spark-batch-code, mountPath: /opt/project/spark-batch }
+            - { name: services-code,    mountPath: /opt/project/services/mongodb_connect }
       volumes:
         - name: dags
           configMap: { name: airflow-dags, optional: true }
+        - name: spark-batch-code
+          configMap: { name: spark-batch-code, optional: true }
+        - name: services-code
+          configMap: { name: services-code, optional: true }

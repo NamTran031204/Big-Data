@@ -25,7 +25,7 @@ STREAM_PACKAGES := org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgres
         k8s-status k8s-test-minio k8s-test-kafka k8s-test-debezium k8s-test-postgres \
         k8s-test-mongo k8s-test-spark k8s-test-airflow k8s-test-all \
         k8s-logs-bronze k8s-logs-silver k8s-logs-gold k8s-logs-streaming \
-        k8s-airflow-trigger \
+        k8s-airflow-trigger k8s-deploy-streaming \
         k8s-build-springboot k8s-deploy-springboot k8s-port-forward-local
 
 help:
@@ -147,6 +147,8 @@ k8s-build-images:
 k8s-code-configmaps:
 	kubectl -n $(NS) create configmap spark-batch-code --from-file=spark-batch/ \
 		--dry-run=client -o yaml | kubectl apply -f -
+	kubectl -n $(NS) create configmap spark-streaming-code --from-file=spark-streaming/ \
+		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl -n $(NS) create configmap services-code \
 		--from-file=services/mongodb_connect/mongo_connector.py \
 		--dry-run=client -o yaml | kubectl apply -f -
@@ -237,9 +239,14 @@ k8s-logs-gold:
 	  "tail -f \$$(find /opt/airflow/logs/dag_id=batch_pipeline -name '*.log' -path '*/task_id=gold/*' 2>/dev/null | sort | tail -1) 2>/dev/null \
 	   || echo 'Chua co log gold. Chay: make airflow-trigger-k8s roi thu lai.'"
 
-# Streaming: kafka_consumer.py submit thẳng (không qua Airflow) -> log trên spark-worker.
+# Streaming: kafka_consumer.py chạy trong pod spark-streaming riêng.
 k8s-logs-streaming:
-	kubectl -n $(NS) logs -f -l app=spark-worker --tail=500
+	kubectl -n $(NS) logs -f -l app=spark-streaming --tail=500
+
+k8s-deploy-streaming:
+	$(MAKE) k8s-code-configmaps
+	kubectl apply -f k8s/75-spark-streaming.yaml
+	@echo "Streaming pod deployed. Log: make k8s-logs-streaming"
 
 k8s-airflow-trigger:
 	kubectl -n $(NS) exec deploy/airflow-scheduler -- airflow dags trigger batch_pipeline
@@ -256,11 +263,25 @@ k8s-deploy-springboot: k8s-build-springboot
 	kubectl apply -f k8s/70-springboot.yaml
 	@echo "✅ springboot-app deployed. Xem log: kubectl -n $(NS) logs -f deploy/springboot-app"
 
-# In ra lệnh port-forward cần chạy khi dùng profile k8s-local (code chạy local)
+# Hướng dẫn chạy Spring Boot + Frontend LOCAL, kết nối vào k8s pods qua port-forward.
+# Không cần build Docker image. Yêu cầu: minikube đang chạy + namespace bigdata đã up.
 k8s-port-forward-local:
-	@echo "Chạy 2 lệnh sau trong 2 terminal riêng rồi khởi động SpringBoot với profile k8s-local:"
-	@echo "  kubectl -n $(NS) port-forward svc/kafka    9092:9092"
+	@echo "==================================================================="
+	@echo " Chạy local (Spring + Frontend) <-> k8s pods (Postgres + Kafka)"
+	@echo "==================================================================="
+	@echo ""
+	@echo "[Terminal 1] Port-forward Postgres:"
 	@echo "  kubectl -n $(NS) port-forward svc/postgres 5433:5432"
 	@echo ""
-	@echo "Khởi động SpringBoot:"
+	@echo "[Terminal 2] Port-forward Kafka:"
+	@echo "  kubectl -n $(NS) port-forward svc/kafka 9092:9092"
+	@echo ""
+	@echo "[Terminal 3] Spring Boot (profile k8s-local):"
 	@echo "  cd SpringBoot && mvn spring-boot:run -Dspring-boot.run.profiles=k8s-local"
+	@echo ""
+	@echo "[Terminal 4] Frontend:"
+	@echo "  cd services/product-web && npm install && npm run dev"
+	@echo ""
+	@echo "  Spring API : http://localhost:8085/api"
+	@echo "  Frontend   : http://localhost:5173"
+	@echo "==================================================================="

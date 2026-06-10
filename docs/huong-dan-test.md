@@ -256,19 +256,57 @@ Mở `docs/data-view/gold-data-requirment.md` và xác nhận từng metric SQL 
 
 ## PHẦN B — TEST TRÊN KUBERNETES (minikube)
 
+> **Khác Docker Compose:** Airflow chạy **LocalExecutor + `deploy_mode="client"`**, nên
+> `spark-submit` và Spark **driver chạy NGAY trong pod `airflow-scheduler`** (executor ở
+> `spark-worker`). Vì vậy:
+> - Code job `silver`/`gold` phải có trong pod airflow → đã mount configmap
+>   `spark-batch-code` (`/opt/project/spark-batch`) + `services-code`
+>   (`/opt/project/services/mongodb_connect`) vào scheduler & webserver (`k8s/60-airflow.yaml`).
+> - **Log `print()` của silver/gold nằm trong Airflow task log (pod `airflow-scheduler`)**,
+>   KHÔNG phải log pod `spark-worker`. Pod spark-worker chỉ chứa log executor (Spark internal).
+
+### B0. Thứ tự thực hiện (tổng quan)
+
+| # | Lệnh | Mục đích |
+|---|------|----------|
+| 1 | `make k8s-up` | start minikube, build & load 3 image, tạo configmap code, apply manifests |
+| 2 | `kubectl -n bigdata get pods -w` | **chờ TẤT CẢ pod Running/Ready** trước khi đi tiếp |
+| 3 | `make seed-postgres-k8s` | nạp CSV vào Postgres **TRƯỚC** khi register connector |
+| 4 | `make k8s-test-all` | sanity từng pod (postgres/minio/kafka/debezium/mongo/spark/airflow) |
+| 5 | `make k8s-airflow-trigger` | chạy DAG `batch_pipeline`: `ensure_connectors → wait_bronze → silver → gold` |
+| 6 | xem log từng giai đoạn (**B5**) | theo dõi bronze → silver → gold + kiểm chứng MinIO/Mongo |
+| 7 | `make k8s-down` | dọn dẹp namespace |
+
+> **Vì sao phải seed (bước 3) TRƯỚC khi trigger (bước 5)?** Debezium `snapshot.mode=initial`:
+> khi task `ensure_connectors` đăng ký source connector, nó **chụp các hàng đang có** trong
+> Postgres. Nếu chưa seed thì snapshot rỗng → bronze rỗng → task `silver` fail
+> `Path does not exist: s3a://bronze-zone/cdc/...`.
+>
+> **Thứ tự khởi động giữa các pod đã tự đảm bảo** bằng `initContainers`: `debezium-connect`
+> chờ `kafka:9094`, `kafka` chờ `zookeeper:2181`, các pod `airflow-*` chờ `airflow-postgres:5432`,
+> `spark-worker` chờ `spark-master:8080`. Nên ở bước 2 chỉ cần đợi mọi pod `Running` là đủ.
+
 ### B1. Deploy
 
 ```bash
 make k8s-up            # start minikube + build image + tạo configmap code + apply manifests
-make k8s-status        # chờ tất cả pod Running
-kubectl -n bigdata get pods -w
+make k8s-status        # liệt kê pod
+kubectl -n bigdata get pods -w   # chờ tới khi tất cả READY (Ctrl-C để thoát)
 ```
+
+> Một pod ở trạng thái `Init:0/1` nghĩa là đang chờ phụ thuộc (đúng thiết kế). Xem pod nào
+> đang chờ ai: `kubectl -n bigdata get pods` rồi `kubectl -n bigdata logs <pod> -c <init-container>`
+> (vd `-c wait-kafka`, `-c wait-airflow-postgres`).
 
 ### B2. Nạp dữ liệu Postgres trong cluster
 
 ```bash
 make seed-postgres-k8s   # copy CSV vào pod postgres + chạy 02-load.sql
+# Kiểm chứng:
+kubectl -n bigdata exec deploy/postgres -- psql -U postgres -d olist -c \
+  "SELECT 'orders' t, count(*) FROM orders;"
 ```
+**Đúng khi:** orders ≈ 99441.
 
 ### B3. Test từng pod
 
@@ -282,22 +320,64 @@ make k8s-test-minio      # pod ready + liệt kê /data
 make k8s-test-kafka      # kafka-broker-api-versions + list topics
 make k8s-test-debezium   # curl /connectors
 make k8s-test-mongo      # mongosh ping
-make k8s-test-spark      # spark-submit --version + code mounted
+make k8s-test-spark      # spark-submit --version + code mounted (/opt/project/spark-batch)
 make k8s-test-airflow    # airflow dags list | grep batch_pipeline
 ```
 
 ### B4. Chạy pipeline trên k8s
 
 ```bash
-# Đăng ký connector + trigger DAG (qua airflow trong cluster)
-kubectl -n bigdata exec deploy/airflow-scheduler -- airflow dags trigger batch_pipeline
+make k8s-airflow-trigger   # = kubectl -n bigdata exec deploy/airflow-scheduler -- airflow dags trigger batch_pipeline
 
-# Mở UI bằng port-forward
-kubectl -n bigdata port-forward svc/airflow-webserver 8081:8080
-kubectl -n bigdata port-forward svc/minio 9001:9001
+# (tuỳ chọn) Mở UI bằng port-forward — mỗi lệnh chạy ở 1 terminal riêng:
+kubectl -n bigdata port-forward svc/airflow-webserver 8081:8080   # Airflow UI
+kubectl -n bigdata port-forward svc/minio 9001:9001               # MinIO Console
 ```
 
-### B5. Dọn dẹp
+### B5. Xem log theo từng giai đoạn
+
+Các giai đoạn chạy theo đúng thứ tự DAG. Mỗi giai đoạn có lệnh log riêng (đều là `make`):
+
+| Giai đoạn | Lệnh xem log | Pod/nguồn log | Dòng log mong đợi |
+|---|---|---|---|
+| **Bronze** (Debezium S3 Sink ingest) | `make k8s-logs-bronze` | pod `debezium-connect` | `Started ... S3SinkTask`, không có `ERROR`; sink commit file parquet |
+| **Silver** (Spark bronze→silver) | `make k8s-logs-silver` | Airflow task log trong `airflow-scheduler` | `✅ Silver đã ghi: s3a://silver-zone/...` + bảng mẫu 5 dòng |
+| **Gold** (Spark silver→gold, 3 sink) | `make k8s-logs-gold` | Airflow task log trong `airflow-scheduler` | mỗi collection: `✅ MinIO parquet: gold_...` và `✅ mongo[local] gold_...: N docs` |
+| *(tuỳ chọn)* **Streaming** | `make k8s-logs-streaming` | pod `spark-streaming` | (chỉ khi đã `make k8s-deploy-streaming`) |
+
+> `make k8s-logs-silver`/`k8s-logs-gold` exec vào `airflow-scheduler` và `tail -f` file log
+> của lần chạy task **gần nhất** dưới `/opt/airflow/logs/dag_id=batch_pipeline/.../task_id=silver|gold/`.
+> Nếu báo *"Chua co log..."* nghĩa là task chưa chạy → trigger lại (`make k8s-airflow-trigger`) rồi thử lại.
+
+**Cách xem log khác (khi cần debug sâu):**
+```bash
+# Trạng thái + log toàn bộ pipeline qua Airflow UI: port-forward 8081 (B4) -> Graph -> task -> Logs
+# Hoặc theo dõi log thô của 1 pod bất kỳ:
+kubectl -n bigdata logs -f deploy/airflow-scheduler        # toàn bộ scheduler (gồm cả spark-submit)
+kubectl -n bigdata logs -f deploy/spark-worker             # executor Spark (silver/gold)
+kubectl -n bigdata logs -f deploy/debezium-connect         # = k8s-logs-bronze
+# Log của initContainer (nếu pod kẹt ở Init):
+kubectl -n bigdata logs <pod> -c wait-kafka                # debezium chờ kafka
+kubectl -n bigdata logs <pod> -c wait-airflow-postgres     # airflow chờ db
+# Liệt kê trạng thái từng task của lần chạy gần nhất:
+kubectl -n bigdata exec deploy/airflow-scheduler -- airflow tasks states-for-dag-run batch_pipeline <run_id>
+```
+
+### B6. Kiểm chứng output (giống A4–A6, qua pod trong cluster)
+
+```bash
+# Bronze parquet:
+kubectl -n bigdata exec sts/minio -- ls /data/bronze-zone/cdc/
+# Silver parquet:
+kubectl -n bigdata exec sts/minio -- ls /data/silver-zone/olist_unified_silver/
+# Gold collections trên Mongo local:
+kubectl -n bigdata exec sts/mongodb -- mongosh -u admin -p admin123456 \
+  --authenticationDatabase admin --quiet --eval '
+    const db = db.getSiblingDB("olist_gold");
+    db.getCollectionNames().forEach(c => print(c, db[c].countDocuments()));'
+```
+
+### B7. Dọn dẹp
 ```bash
 make k8s-down
 ```

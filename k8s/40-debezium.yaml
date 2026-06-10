@@ -14,6 +14,10 @@ spec:
     metadata:
       labels: { app: debezium-connect }
     spec:
+      initContainers:
+        - name: wait-kafka
+          image: busybox
+          command: ['sh', '-c', 'until nc -z kafka 9094; do echo wait-kafka; sleep 3; done']
       containers:
         - name: debezium-connect
           image: bigdata-debezium:2.4
