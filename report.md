@@ -750,43 +750,389 @@ Luồng dữ liệu hành vi người dùng là dòng dịch chuyển liên tụ
 
 ---
 
-## Bài học 4: Lưu trữ dữ liệu — Thiết kế Gold Layer với định dạng và phân vùng phù hợp
+## Bài học 4: Gold Layer — Tổng hợp dữ liệu nghiệp vụ và đồng bộ đa hệ thống lưu trữ
 
 ### Mô tả vấn đề
 
 #### Bối cảnh và nền tảng
-Gold layer cần phục vụ đồng thời hai loại truy vấn: (1) truy vấn lịch sử toàn bộ (Spark đọc từ MinIO), và (2) truy vấn real-time theo dimension (MongoDB).
 
-#### Thách thức gặp phải
-- Ban đầu Gold MinIO không có phân vùng, Spark phải scan toàn bộ files khi query theo date range.
-- MongoDB không có index, truy vấn `find({ingest_date: "2024-01-15"})` phải full-scan collection.
-- Bulk upsert MongoDB không có key field rõ ràng gây duplicate documents.
+Sau khi dữ liệu được xử lý ở Silver Layer, dữ liệu đã được làm sạch CDC, loại bỏ các bản ghi cũ và chuẩn hóa về đúng grain.
 
-#### Tác động đến hệ thống
-- Spark Gold job mất 15–20 phút do không có partition pruning.
-- MongoDB query timeout khi collection lớn hơn 10K documents.
+Tuy nhiên dữ liệu Silver vẫn đang ở mức chi tiết (transaction-level), phù hợp cho việc lưu trữ và phân tích sâu nhưng chưa tối ưu để phục vụ trực tiếp cho ứng dụng hoặc dashboard.
+
+Ví dụ:
+
+Silver Layer có grain:
+
+```
+1 dòng = 1 order_item
+```
+
+Trong khi các hệ thống phía sau cần những dữ liệu tổng hợp như:
+
+- Doanh thu theo thời gian.
+- Hiệu suất bán hàng của seller.
+- Phân tích hành vi khách hàng RFM.
+- Các chỉ số phục vụ API và dashboard.
+
+Vì vậy cần xây dựng Gold Layer để tổng hợp dữ liệu Silver thành các bảng dữ liệu phục vụ nghiệp vụ.
+
+Ngoài ra Gold Layer cần phục vụ đồng thời nhiều hệ thống:
+
+- MinIO: lưu trữ dữ liệu dạng Parquet lâu dài.
+- MongoDB Local: phục vụ truy vấn ứng dụng.
+- MongoDB Atlas: phục vụ phân tích và dashboard.
+
+---
+
+### Thách thức gặp phải
+
+- Nếu sử dụng trực tiếp Silver Layer cho frontend hoặc API, mỗi lần truy vấn phải thực hiện lại các phép tính tổng hợp như:
+
+```python
+groupBy()
+agg()
+sum()
+count()
+```
+
+dẫn đến thời gian phản hồi tăng khi dữ liệu lớn.
+
+- Nếu Spark ghi trực tiếp dữ liệu từ nhiều partition vào MongoDB, mỗi executor có thể tạo một kết nối riêng:
+
+```
+Executor 1
+Executor 2
+Executor 3
+...
+```
+
+gây nhiều connection đồng thời và làm giảm hiệu năng database.
+
+- Khi pipeline chạy lại, nếu sử dụng cách ghi thông thường:
+
+```python
+insert()
+```
+
+có thể tạo ra duplicate document trong MongoDB.
+
+- Các truy vấn trên MongoDB nếu không có index sẽ phải scan toàn bộ collection.
+
+---
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Phân vùng Parquet theo `year/month/day`. Phức tạp khi viết, cần cơ chế partition discovery đặc biệt.
+**Cách 1:** Cho ứng dụng đọc trực tiếp dữ liệu Silver.
 
-**Cách 2:** Dùng `ingest_date` (string `YYYY-MM-DD`) làm partition key trực tiếp trên column. Đơn giản hơn, Spark tự nhận diện partition khi đọc.
+Không tối ưu vì Silver chứa dữ liệu chi tiết.
 
-**Cách 3:** Tạo compound index MongoDB `{seller_id: 1, ingest_date: 1}` cho collection có hai chiều truy vấn.
+Ví dụ để tính doanh thu:
+
+```python
+silver.groupBy("order_date") \
+      .agg(sum("price"))
+```
+
+phải thực hiện lại mỗi lần truy vấn.
+
+Khi dữ liệu tăng, thời gian xử lý cũng tăng theo.
+
+---
+
+**Cách 2:** Spark ghi trực tiếp từng record sang MongoDB.
+
+Mỗi Spark partition tự ghi dữ liệu:
+
+```
+Spark Worker
+      |
+      |
+      v
+MongoDB
+```
+
+Điều này gây:
+
+- Nhiều kết nối đồng thời.
+- Tăng tải MongoDB.
+- Pipeline khó kiểm soát.
+
+---
+
+**Cách 3:** Sử dụng insert thông thường khi ghi Gold.
+
+Nếu pipeline chạy lại:
+
+```python
+insert_one()
+insert_one()
+insert_one()
+```
+
+sẽ tạo nhiều document trùng nhau.
+
+---
 
 ### Giải pháp cuối cùng
 
-- **MinIO Parquet:** Thêm cột `ingest_date` (string `YYYY-MM-DD`) vào tất cả Gold DataFrames trước khi ghi. Dùng `.write.partitionBy("ingest_date")` để Spark tổ chức thư mục tự động.
-- **MongoDB index:** Single-field index trên `ingest_date` cho tất cả collection. Compound index `(dimension_id, ingest_date)` cho collection có nhiều dimension (seller, product).
-- **Bulk upsert key fields:** Mỗi collection có key field rõ ràng (ví dụ: `["ingest_date"]` cho revenue theo ngày, `["customer_unique_id"]` cho RFM), đảm bảo upsert không tạo duplicate.
-- **Kết quả:** Spark Gold job giảm từ 15 phút xuống 3–4 phút. MongoDB query với index giảm từ >1s xuống <50ms.
+#### 1. Xây dựng Gold Dataset bằng Aggregation
+
+Dữ liệu Silver được tổng hợp thành các bảng nghiệp vụ phù hợp với mục đích sử dụng.
+
+---
+
+### Revenue Metric
+
+Grain:
+
+```
+1 dòng = 1 khoảng thời gian
+```
+
+Từ Silver thực hiện:
+
+```python
+groupBy("order_date")
+```
+
+Sau đó tính:
+
+```python
+sum(price)
+count(order_id)
+```
+
+Kết quả tạo bảng doanh thu phục vụ dashboard.
+
+---
+
+### Seller Performance
+
+Grain:
+
+```
+1 dòng = 1 seller
+```
+
+Tổng hợp các chỉ số:
+
+- Tổng doanh thu.
+- Số lượng đơn hàng.
+- Hiệu suất giao hàng.
+
+Dữ liệu sau khi tổng hợp nhỏ hơn nhiều so với Silver.
+
+---
+
+### Customer RFM
+
+Grain:
+
+```
+1 dòng = 1 customer
+```
+
+Tính ba nhóm chỉ số:
+
+**Recency**
+
+Khoảng thời gian từ lần mua gần nhất.
+
+**Frequency**
+
+Số lượng đơn hàng của khách.
+
+**Monetary**
+
+Tổng giá trị khách hàng đã chi tiêu.
+
+---
+
+### 2. Multi-Sink Pattern
+
+Sau khi tạo Gold DataFrame, dữ liệu được ghi ra nhiều hệ thống.
+
+---
+
+### Lưu Gold trên MinIO
+
+Dữ liệu được lưu dưới dạng Parquet:
+
+```python
+gold.write \
+.mode("append") \
+.parquet(output_path)
+```
+
+Mục đích:
+
+- Lưu trữ dữ liệu lâu dài.
+- Có thể đọc lại bằng Spark.
+- Phục vụ các truy vấn phân tích lớn.
+
+---
+
+### Đồng bộ sang MongoDB
+
+Do dữ liệu Gold đã được tổng hợp nhỏ hơn Silver, có thể đưa sang MongoDB để phục vụ ứng dụng.
+
+Thay vì để từng Spark partition ghi trực tiếp, sử dụng:
+
+```python
+toLocalIterator()
+```
+
+để lấy dữ liệu tuần tự về driver.
+
+Flow:
+
+```
+Gold DataFrame
+
+      |
+
+toLocalIterator()
+
+      |
+
+bulk_upsert()
+
+      |
+
+MongoDB
+```
+
+Cách này giúp:
+
+- Kiểm soát lượng dữ liệu ghi.
+- Giảm số lượng connection.
+- Tránh gây quá tải database.
+
+---
+
+### 3. Bulk Upsert đảm bảo Idempotent
+
+Pipeline có thể chạy lại nhiều lần.
+
+Nếu chỉ dùng insert:
+
+```
+Run 1:
+document A
+
+Run 2:
+document A
+```
+
+sẽ tạo duplicate.
+
+Giải pháp sử dụng:
+
+```python
+UpdateOne(
+    filter,
+    update,
+    upsert=True
+)
+```
+
+Nếu document đã tồn tại:
+
+```
+UPDATE
+```
+
+Nếu chưa tồn tại:
+
+```
+INSERT
+```
+
+Ví dụ:
+
+Revenue:
+
+```
+ingest_date
+```
+
+RFM:
+
+```
+customer_unique_id
+```
+
+Seller:
+
+```
+seller_id
+```
+
+được dùng làm key xác định bản ghi.
+
+---
+
+### 4. Tối ưu MongoDB bằng Index
+
+Sau khi load Gold data, pipeline tự động tạo index.
+
+Ví dụ:
+
+```python
+create_gold_indexes()
+```
+
+Index:
+
+```python
+[
+    ("seller_id", 1),
+    ("ingest_date", 1)
+]
+```
+
+Giúp MongoDB tìm kiếm theo dimension nhanh hơn.
+
+Nếu không có index:
+
+```
+COLLSCAN
+```
+
+MongoDB phải đọc toàn bộ collection.
+
+Có index:
+
+```
+INDEX SCAN
+```
+
+chỉ đọc phần dữ liệu cần thiết.
+
+---
+
+### Kết quả
+
+- Silver Layer được chuyển thành các bảng dữ liệu nghiệp vụ.
+- Gold Layer có kích thước nhỏ hơn, phù hợp cho truy vấn.
+- Spark không phải tính toán lại KPI mỗi lần ứng dụng truy cập.
+- MongoDB giảm tải nhờ bulk upsert.
+- Pipeline chạy lại không tạo duplicate.
+- FE/FastAPI có thể truy vấn dữ liệu nhanh hơn.
+- Dữ liệu được phục vụ đồng thời cho Data Lake và hệ thống ứng dụng.
+
+---
 
 ### Điểm rút ra
 
-- Luôn thêm partition key (`ingest_date`) vào mọi Gold dataset ngay từ đầu thiết kế — thêm sau cần viết lại toàn bộ.
-- MongoDB compound index nên follow query pattern thực tế: truy vấn nào thường kết hợp field nào thì index theo đó.
-- Upsert key fields phải đủ để xác định duy nhất một document — thiếu field sẽ tạo duplicate, thừa field sẽ tạo document mới thay vì update.
-- `overwrite` mode cho Parquet Gold phù hợp khi recompute từ đầu; nếu incremental thì cần `mergeSchema` + partition overwrite.
+- Silver Layer tập trung vào làm sạch và chuẩn hóa dữ liệu, Gold Layer tập trung vào nghiệp vụ.
+- Mỗi bảng Gold cần xác định grain rõ ràng trước khi tổng hợp.
+- Nên thực hiện aggregation trong Spark trước khi đưa dữ liệu sang database.
+- Khi Spark ghi sang hệ thống ngoài cần kiểm soát số lượng connection.
+- Bulk Upsert phù hợp hơn insert từng document trong Data Pipeline.
+- Index MongoDB nên được tạo ngay trong pipeline để đảm bảo hiệu năng truy vấn.
+- Một Data Pipeline hoàn chỉnh không chỉ biến đổi dữ liệu mà còn phải tối ưu cách dữ liệu được lưu trữ và phục vụ cho hệ thống phía sau.
 
 ---
 
