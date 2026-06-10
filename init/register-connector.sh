@@ -11,6 +11,7 @@
 # =====================================================================
 
 CONNECT_URL="${CONNECT_URL:-http://localhost:8083}"
+DB_HOSTNAME="${DB_HOSTNAME:-bigdata-postgres}"
 
 echo "⏳ Chờ Debezium Connect sẵn sàng tại ${CONNECT_URL}..."
 until curl -sf "${CONNECT_URL}/connectors" > /dev/null 2>&1; do
@@ -23,12 +24,13 @@ echo "📡 Đăng ký source connector olist-connector..."
 RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${CONNECT_URL}/connectors" \
   -H "Accept:application/json" \
   -H "Content-Type:application/json" \
-  -d '{
+  -d @- <<EOF
+{
   "name": "olist-connector",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
-    "database.hostname": "bigdata-postgres",
+    "database.hostname": "${DB_HOSTNAME}",
     "database.port": "5432",
     "database.user": "postgres",
     "database.password": "postgres",
@@ -45,7 +47,9 @@ RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${CONNECT_URL}/connecto
     "heartbeat.interval.ms": "10000",
     "tombstones.on.delete": "false"
   }
-}')
+}
+EOF
+)
 
 if [ "$RESULT" = "201" ]; then
   echo "✅ Source connector đăng ký thành công!"

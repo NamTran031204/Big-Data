@@ -26,7 +26,8 @@ STREAM_PACKAGES := org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.postgres
         k8s-test-mongo k8s-test-spark k8s-test-airflow k8s-test-all \
         k8s-logs-bronze k8s-logs-silver k8s-logs-gold k8s-logs-streaming \
         k8s-airflow-trigger k8s-deploy-streaming \
-        k8s-build-springboot k8s-deploy-springboot k8s-port-forward-local
+        k8s-build-springboot k8s-deploy-springboot k8s-port-forward-local \
+        k8s-register-connectors
 
 help:
 	@echo "===== DOCKER ====="
@@ -48,6 +49,7 @@ help:
 	@echo "  make k8s-build-images    - Build image custom vào minikube"
 	@echo "  make k8s-code-configmaps - Tạo configmap code (spark/services/dags/pg-init)"
 	@echo "  make k8s-up              - Deploy toàn bộ lên minikube"
+	@echo "  make k8s-register-connectors - Đăng ký Debezium source + S3 sink trên k8s"
 	@echo "  make seed-postgres-k8s   - Nạp CSV -> Postgres trong cluster"
 	@echo "  make k8s-status          - kubectl get pods"
 	@echo "  make k8s-test-all        - Test lần lượt từng pod"
@@ -88,6 +90,15 @@ seed-streaming-tables:
 register-connectors:
 	cd init && bash register-connector.sh
 	cd init && bash register-s3-sink.sh
+
+k8s-register-connectors:
+	@bash -c '\
+		kubectl -n $(NS) port-forward svc/debezium-connect 18083:8083 & PF=$$!; \
+		echo "⏳ Port-forward debezium-connect :18083 -> đợi 5s..."; \
+		sleep 5; \
+		CONNECT_URL=http://localhost:18083 DB_HOSTNAME=postgres bash init/register-connector.sh && \
+		CONNECT_URL=http://localhost:18083 bash init/register-s3-sink.sh; \
+		kill $$PF 2>/dev/null || true'
 
 run-silver:
 	docker exec -i spark-master /opt/spark/bin/spark-submit \
