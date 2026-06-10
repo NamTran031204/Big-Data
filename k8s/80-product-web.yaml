@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-web
+  namespace: bigdata
+  labels:
+    app: product-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-web
+  template:
+    metadata:
+      labels:
+        app: product-web
+    spec:
+      containers:
+        - name: product-web
+          image: product-web:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-web
+  namespace: bigdata
+spec:
+  selector:
+    app: product-web
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+  type: NodePort
