@@ -541,13 +541,10 @@ Mỗi service được triển khai trong một Deployment riêng với Service 
 
 ### Quy trình deploy
 
-```
-make k8s-build-images      # Đẩy 3 custom image vào Minikube Docker daemon
-make k8s-code-configmaps   # Tạo ConfigMap từ code files
-make k8s-up                # kubectl apply -f k8s/
-make seed-postgres-k8s     # Copy CSV vào Postgres pod + chạy COPY
-make k8s-test-all          # Chạy test suite cho tất cả services
-```
+- Start Minikube, cấp phát cpu, ram để chạy lên một máy chủ minikube tại docker
+- Build các pod
+- Copy dữ liệu csv vào posgres để khởi tạo lần chạy đầu tiên
+- Test và trigger các pod để thực hiện luồng
 
 ---
 
@@ -573,23 +570,57 @@ Spark jobs đọc cấu hình từ biến môi trường thay vì hardcode, đư
 
 ---
 
-## Bài học 1: Thu thập dữ liệu — Cấu hình Debezium CDC cho PostgreSQL
+## Bài học 1: Thu thập dữ liệu
+
+### Tìm kiếm nguồn dữ liệu
+
+
+#### Mô tả vấn đề
+
+##### Bối cảnh và nền tảng
+Nhóm cần có một bộ dữ liệu bán hàng đủ chất lượng để thực hiện được việc xử lý đa dạng và xác định bài toán & giải pháp.
+
+##### Thách thức gặp phải
+- Nhóm muốn thực hiện crawl data từ các nguồn như shopee, lazada, amazon,... nhưng vướng phải chính sách nghiêm ngặt của các sàn thương mại điện tử.
+
+##### Tác động đến hệ thống
+- Nguồn dữ liệu chất lượng vừa giúp các thành viên nhóm có nguồn data đủ phức tạp và đủ thông tin để test và nhận biết kết quả.
+
+#### Cách tiếp cận đã thử
+
+**Cách 1:** Thử tìm các sàn thương mại điện tử: phần này khi nhóm triển khai tìm kiếm trong vòng 3-4 ngày, kết quả không khả quan do các sàn đều có chính sách chống cào dữ liệu. Nhóm cũng đã thử tìm các tool cào dữ liệu trên mạng nhưng hầu hết đều có trả phí.
+
+**Cách 2:** Tự viết script typescript can thiệp vào đọc gói tin trả về từ các api và đọc response. Cách này tỏ ra hiệu quả đối với shopee, nhưng nhược điểm là cả nhóm phải chuyển trang thủ công để shopee gọi api mới, hiệu suất cũng không cao. Nhóm mất khoảng 4 ngày để setup và test hiệu năng của phương pháp này, phương pháp này làm song song với phương pháp 1. Mặt tối của phương pháp này còn nằm ở điểm là cả nhóm không biết thế nào mới là data đủ tốt để thực hiện việc xử lý.
+
+**Cách 3:** Tìm kiếm nguồn dữ liệu trên mạng thông qua các trang như Kagger,... Cách này tỏ ra hiệu quả hơn nhiều so với những phương pháp trên, vửa giúp nhóm xây dựng được demo database vừa xác định được schema cần triển khai.
+
+#### Giải pháp cuối cùng
+
+- Chọn phương án `Download` dữ liệu từ nguồn bên ngoài.
+- **Kết quả:** Sau khi tìm hểu nhóm đã tìm thấy nguồn data từ Sàn thương mại điện tử Olist, và đã quyết định chọn phương án này.
+
+#### Điểm rút ra
+
+- Bài toán ban đầu vẫn còn khá mơ hồ nhưng nhóm đã mất nhiều thời gian trong việc đi tìm data mà cũng không biết tiêu chí như thế nào, gây lãng phí về thời gian và gây mơ hồ hơn trong việc phát triển bài toán tổng thể.
+
 
 ### Mô tả vấn đề
 
-#### Bối cảnh và nền tảng
+#### Mô tả vấn đề
+
+##### Bối cảnh và nền tảng
 Nhóm cần thiết lập Debezium để bắt mọi thay đổi từ PostgreSQL và đẩy vào Kafka. Đây là lần đầu nhóm làm việc với CDC và logical replication của PostgreSQL.
 
-#### Thách thức gặp phải
+##### Thách thức gặp phải
 - Connector đăng ký thành công nhưng không có message nào xuất hiện trên Kafka topics.
 - Khi có message, phần dữ liệu số (price, payment\_value) bị nhận dạng là chuỗi base64 thay vì số thực.
 - Sau khi xóa connector và đăng ký lại, gặp lỗi replication slot đã tồn tại.
 
-#### Tác động đến hệ thống
+##### Tác động đến hệ thống
 - S3 Sink Connector ghi ra file Parquet với cột price là kiểu `bytes` thay vì `double`, khiến Spark đọc Bronze bị lỗi schema.
 - Replication slot bị giữ tốn tài nguyên PostgreSQL, WAL log tích lũy không được giải phóng.
 
-### Cách tiếp cận đã thử
+#### Cách tiếp cận đã thử
 
 **Cách 1:** Giữ `decimal.handling.mode` mặc định (`precise`), cố gắng parse base64 trong Spark bằng UDF. Không khả thi vì cần viết thêm Avro decoder, phức tạp không cần thiết.
 
@@ -597,7 +628,7 @@ Nhóm cần thiết lập Debezium để bắt mọi thay đổi từ PostgreSQL
 
 **Cách 3:** Đăng nhập PostgreSQL, drop slot thủ công bằng `SELECT pg_drop_replication_slot('debezium_slot')`, sau đó đăng ký lại connector.
 
-### Giải pháp cuối cùng
+#### Giải pháp cuối cùng
 
 - Chuẩn hóa connector config với `decimal.handling.mode: double` từ đầu, không thay đổi sau khi đã có dữ liệu.
 - Thêm `tombstones.on.delete: false` để tránh null-payload message làm S3 Sink bị lỗi.
@@ -605,7 +636,7 @@ Nhóm cần thiết lập Debezium để bắt mọi thay đổi từ PostgreSQL
 - Script `register-connector.sh` dùng `PUT /connectors/{name}/config` thay vì `POST`, tự động update nếu đã tồn tại, idempotent hoàn toàn.
 - **Kết quả:** Sau khi áp dụng, 9 Kafka topics có message đầy đủ, price và payment\_value là số thực DOUBLE trong Parquet.
 
-### Điểm rút ra
+#### Điểm rút ra
 
 - PostgreSQL `wal_level=logical` và `REPLICA IDENTITY FULL` là điều kiện tiên quyết, thiếu một trong hai Debezium không hoạt động đúng.
 - `decimal.handling.mode=double` cần được quyết định trước khi có dữ liệu — thay đổi sau sẽ gây schema incompatibility trên Kafka topic.
@@ -614,7 +645,7 @@ Nhóm cần thiết lập Debezium để bắt mọi thay đổi từ PostgreSQL
 
 ---
 
-## Bài học 2: Xử lý dữ liệu với Spark — Khử trùng lặp CDC và chiến lược Join
+## Bài học 2: Xử lý dữ liệu với Spark 
 
 ### 2.1. Phân tầng Medallion và Khử trùng lặp CDC
 
@@ -683,7 +714,7 @@ Khi Debezium CDC bắt thay đổi, mỗi UPDATE trên một bản ghi tạo ra 
 
 ---
 
-## Bài học 3: Xử lý luồng — Cấu hình S3 Sink Connector để đảm bảo flush đúng
+## Bài học 3: Xử lý luồng
 
 ### 3.1. Xử lý cấu hình S3 Sink Connector để đảm bảo flush đúng
 
@@ -756,7 +787,7 @@ Luồng dữ liệu hành vi người dùng là dòng dịch chuyển liên tụ
 
 ## Bài học 4: Gold Layer — Tổng hợp dữ liệu nghiệp vụ và đồng bộ đa hệ thống lưu trữ
 
-### Mô tả vấn đề
+### Cấu hình Debezium CDC cho PostgreSQL
 
 #### Bối cảnh và nền tảng
 
@@ -886,7 +917,7 @@ Dữ liệu Silver được tổng hợp thành các bảng nghiệp vụ phù h
 
 ---
 
-### Revenue Metric
+##### Revenue Metric
 
 Grain:
 
@@ -911,7 +942,7 @@ Kết quả tạo bảng doanh thu phục vụ dashboard.
 
 ---
 
-### Seller Performance
+##### Seller Performance
 
 Grain:
 
@@ -929,7 +960,7 @@ Dữ liệu sau khi tổng hợp nhỏ hơn nhiều so với Silver.
 
 ---
 
-### Customer RFM
+##### Customer RFM
 
 Grain:
 
@@ -953,13 +984,13 @@ Tổng giá trị khách hàng đã chi tiêu.
 
 ---
 
-### 2. Multi-Sink Pattern
+#### 2. Multi-Sink Pattern
 
 Sau khi tạo Gold DataFrame, dữ liệu được ghi ra nhiều hệ thống.
 
 ---
 
-### Lưu Gold trên MinIO
+##### Lưu Gold trên MinIO
 
 Dữ liệu được lưu dưới dạng Parquet:
 
@@ -977,7 +1008,7 @@ Mục đích:
 
 ---
 
-### Đồng bộ sang MongoDB
+##### Đồng bộ sang MongoDB
 
 Do dữ liệu Gold đã được tổng hợp nhỏ hơn Silver, có thể đưa sang MongoDB để phục vụ ứng dụng.
 
@@ -1015,7 +1046,7 @@ Cách này giúp:
 
 ---
 
-### 3. Bulk Upsert đảm bảo Idempotent
+#### 3. Bulk Upsert đảm bảo Idempotent
 
 Pipeline có thể chạy lại nhiều lần.
 
@@ -1077,7 +1108,7 @@ seller_id
 
 ---
 
-### 4. Tối ưu MongoDB bằng Index
+#### 4. Tối ưu MongoDB bằng Index
 
 Sau khi load Gold data, pipeline tự động tạo index.
 
@@ -1140,9 +1171,9 @@ chỉ đọc phần dữ liệu cần thiết.
 
 ---
 
-## Bài học 5: Tích hợp hệ thống — Quản lý multi-network Docker và dependency giữa services
+## Bài học 5: Tích hợp hệ thống
 
-### 5.1. Quản lý đa mạng lưới cô lập bằng Multi-network Docker Compose
+### Triển khai bước đầu - Quản lý đa mạng lưới cô lập bằng Multi-network Docker Compose
 
 #### Mô tả vấn đề
 
@@ -1289,9 +1320,6 @@ Nhóm xây dựng quy trình debug 4 bước:
 1. **Airflow UI** (`localhost:8081`): Xem task log, tìm `Caused by:` — đây là root cause thực sự, không phải message đầu tiên.
 2. **Spark Master UI** (`localhost:8082`): Xem Applications tab, click vào application failed, xem Jobs → Stages → Failed Tasks. Stage nào có nhiều Failed Tasks nhất là điểm khởi đầu.
 3. **Executor stderr**: Trong Spark UI, click vào failed task, xem "Stderr" — chứa Java stack trace đầy đủ.
-4. **Debezium REST API**: `GET /connectors/{name}/status` trả về `{connector: {state: "RUNNING"}, tasks: [{state: "FAILED", trace: "..."}]}` — connector ở trạng thái RUNNING nhưng task bên trong có thể FAILED.
-
-Thêm `log.setLevel(logging.INFO)` vào Spark jobs để in row count sau mỗi bước transform — giúp nhanh chóng xác định bước nào tạo ra data bất thường.
 
 - **Kết quả:** Thời gian debug trung bình giảm từ 2–3 giờ xuống 20–30 phút.
 
@@ -1334,7 +1362,7 @@ Sau khi pipeline hoạt động ổn định trên Docker Compose, nhóm cần p
 - **ConfigMap cho code:** `kubectl create configmap spark-batch-code --from-file=spark-batch/`, mount vào `/opt/project/spark-batch/`. `make k8s-code-configmaps` tự động hóa bước này.
 - **Service cho Spark Master:** Tạo Service `spark-master` với port `7077` (RPC) và `8082` (Web UI) — Kubernetes cần Service để expose pod port.
 - **PYTHONPATH:** ConfigMap `spark-env` với `PYTHONPATH=/opt/project` — đảm bảo Spark job import được `services.mongodb_connect`.
-- **Kết quả:** Kubernetes deploy ổn định, tất cả pod Running sau ~3 phút. `make k8s-test-all` pass.
+- **Kết quả:** Kubernetes deploy ổn định, tất cả pod Running sau ~10 phút. `make k8s-test-all` pass.
 
 ### Điểm rút ra
 
@@ -1363,7 +1391,7 @@ Với kiến trúc 3 tầng (Bronze → Silver → Gold), lỗi dữ liệu ở 
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Tin tưởng vào exit code của Spark job. Không đủ — Spark có thể thành công với 0 dòng output.
+**Cách 1:** Tin tưởng vào exit code của Spark job. Điều này theo nhóm thấy là `Không đủ` vì Spark có thể thành công với 0 dòng output.
 
 **Cách 2:** Thêm assertion trong Spark code: `assert silver.count() > 0, "Silver is empty"`. Dừng job khi có vấn đề nhưng không rõ vấn đề ở đâu.
 
@@ -1466,7 +1494,7 @@ Trong môi trường phát triển, service thường xuyên restart (OOM, Docke
 
 ### Giải pháp cuối cùng
 
-- **Spark `overwrite` mode:** Tất cả Silver và Gold write đều dùng `overwrite`. Đây là quyết định có chủ ý: đánh đổi tốc độ lấy correctness và simplicity. Trong phase 1 batch, recompute toàn bộ mỗi ngày là chấp nhận được.
+- **Spark `overwrite` mode:** Tất cả Silver và Gold write đều dùng `overwrite`. Đây là quyết định của cả nhóm để đánh đổi tốc độ lấy correctness và simplicity. Trong phase 1 batch, recompute toàn bộ mỗi ngày là chấp nhận được.
 - **Kafka offset commit:** Cấu hình S3 Sink với `offset.flush.interval.ms=10000`, đảm bảo offset được commit thường xuyên.
 - **MongoDB `bulk_upsert`:** Dùng `UpdateOne` với `upsert=True` và filter theo key fields. Chạy lại bao nhiêu lần vẫn không tạo duplicate.
 - **Airflow `wait_bronze`:** Kiểm tra MinIO trước khi chạy Silver/Gold — nếu Bronze trống (có thể do Debezium chưa kịp flush sau restart), pipeline dừng sớm thay vì sinh ra Silver/Gold rỗng.
@@ -1479,6 +1507,3 @@ Trong môi trường phát triển, service thường xuyên restart (OOM, Docke
 - MongoDB `upsert` thay vì `insert` là default assumption cho serving layer — dữ liệu luôn được cập nhật, không bao giờ duplicate.
 - Thiết kế recovery path trước khi cần, không phải sau khi sự cố xảy ra. Câu hỏi cần tự hỏi: "Nếu bước này fail, pipeline có thể tiếp tục từ đâu?"
 
----
-
-*Báo cáo được thực hiện trong khuôn khổ môn học IT4931 — Lưu trữ và Xử lý Dữ liệu Lớn, Trường Đại học Bách khoa Hà Nội.*
