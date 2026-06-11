@@ -1317,9 +1317,9 @@ Khi pipeline có vấn đề, nhóm cần xác định nguyên nhân gốc rễ 
 
 Nhóm xây dựng quy trình debug 4 bước:
 
-1. **Airflow UI** (`localhost:8081`): Xem task log, tìm `Caused by:` — đây là root cause thực sự, không phải message đầu tiên.
-2. **Spark Master UI** (`localhost:8082`): Xem Applications tab, click vào application failed, xem Jobs → Stages → Failed Tasks. Stage nào có nhiều Failed Tasks nhất là điểm khởi đầu.
-3. **Executor stderr**: Trong Spark UI, click vào failed task, xem "Stderr" — chứa Java stack trace đầy đủ.
+- **Airflow UI** (`localhost:8081`): Xem task log, tìm `Caused by:` — đây là root cause thực sự, không phải message đầu tiên.
+- **Spark Master UI** (`localhost:8082`): Xem Applications tab, click vào application failed, xem Jobs → Stages → Failed Tasks. Stage nào có nhiều Failed Tasks nhất là điểm khởi đầu.
+- **Executor stderr**: Trong Spark UI, click vào failed task, xem "Stderr" — chứa Java stack trace đầy đủ.
 
 - **Kết quả:** Thời gian debug trung bình giảm từ 2–3 giờ xuống 20–30 phút.
 
