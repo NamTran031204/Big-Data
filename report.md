@@ -4,9 +4,9 @@
 
 ---
 
-# I. ĐỊNH NGHĨA BÀI TOÁN
+# ĐỊNH NGHĨA BÀI TOÁN
 
-## 1.1. Bài toán lựa chọn
+## Bài toán lựa chọn
 
 ### Bối cảnh thực tế
 
@@ -42,7 +42,7 @@ Bộ dữ liệu **Brazilian E-Commerce Public Dataset by Olist** gồm 9 bảng
 
 ---
 
-## 1.2. Phân tích mức độ phù hợp với dữ liệu lớn
+## Phân tích mức độ phù hợp với dữ liệu lớn
 
 ### Tại sao bài toán này cần kiến trúc Big Data?
 
@@ -73,7 +73,7 @@ Nếu chỉ dùng PostgreSQL hoặc một ứng dụng Python đơn lẻ:
 
 ---
 
-## 1.3. Phạm vi và giới hạn dự án
+## Phạm vi và giới hạn dự án
 
 ### Phạm vi đã triển khai
 
@@ -93,9 +93,9 @@ Nếu chỉ dùng PostgreSQL hoặc một ứng dụng Python đơn lẻ:
 
 ---
 
-# II. KIẾN TRÚC VÀ THIẾT KẾ
+# KIẾN TRÚC VÀ THIẾT KẾ
 
-## 2.1. Kiến trúc tổng thể — Lambda Architecture
+## Kiến trúc tổng thể — Lambda Architecture
 
 Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (1) xử lý toàn bộ dữ liệu lịch sử chính xác (Batch Layer) và (2) phản hồi gần real-time với sự kiện mới (Speed Layer). Lambda Architecture tách biệt hai luồng này, cho phép độc lập scale và fault-tolerant.
 
@@ -116,7 +116,7 @@ Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (
 
 ---
 
-## 2.2. Các thành phần hệ thống và vai trò
+## Các thành phần hệ thống và vai trò
 
 ### Nhóm Nguồn dữ liệu
 
@@ -183,7 +183,7 @@ Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (
 
 ---
 
-## 2.3. Sơ đồ luồng dữ liệu
+## Sơ đồ luồng dữ liệu
 
 ### Luồng Batch Layer (end-to-end)
 
@@ -254,9 +254,9 @@ Nhóm áp dụng **Broadcast Join** cho các bảng chiều (dimension) nhỏ v�
 
 ---
 
-# III. CHI TIẾT TRIỂN KHAI
+# CHI TIẾT TRIỂN KHAI
 
-## 3.1. Mã nguồn và tổ chức code
+## Mã nguồn và tổ chức code
 
 ### Cấu trúc thư mục chính
 
@@ -300,7 +300,7 @@ Big-Data/
 
 ---
 
-## 3.2. Khởi tạo hạ tầng
+## Khởi tạo hạ tầng
 
 ### Custom Docker Images
 
@@ -326,7 +326,7 @@ Docker Compose `depends_on` + `healthcheck` xử lý phần này tự động.
 
 ---
 
-## 3.3. Cấu hình CDC (Debezium + Kafka)
+## Cấu hình CDC (Debezium + Kafka)
 
 ### Debezium Source Connector
 
@@ -364,7 +364,7 @@ Connector được đăng ký qua REST API (`init/register-connector.sh`):
 
 ---
 
-## 3.4. Spark Batch: Bronze → Silver
+## Spark Batch: Bronze → Silver
 
 ### Mục tiêu
 
@@ -372,32 +372,32 @@ Chuyển đổi dữ liệu CDC thô từ 9 bảng riêng lẻ thành một bả
 
 ### Các bước xử lý chi tiết
 
-**Bước 1 — Đọc Bronze từ MinIO**
+- **Bước 1 — Đọc Bronze từ MinIO**
 
 Spark đọc Parquet từ đường dẫn `s3a://bronze-zone/cdc/olist_cdc.public.<table>/`. Do S3 Sink Connector tổ chức theo `partition=0/`, Spark tự động tìm đệ quy.
 
-**Bước 2 — Khử trùng CDC (dedup\_cdc)**
+- **Bước 2 — Khử trùng CDC (dedup\_cdc)**
 
 Mỗi bản ghi có thể xuất hiện nhiều lần trong Kafka nếu bị update nhiều lần. Quy tắc khử trùng:
 - Lọc bỏ các dòng có `__deleted = 'true'` (sự kiện DELETE).
 - Dùng Window Function: `ROW_NUMBER() OVER (PARTITION BY <primary_key> ORDER BY __ts_ms DESC)`, chỉ giữ dòng có row\_number = 1 (bản ghi mới nhất).
 - Sau khi dedup, xóa cột metadata `__op`, `__ts_ms`, `__deleted`.
 
-**Bước 3 — Chuyển đổi timestamp Debezium**
+- **Bước 3 — Chuyển đổi timestamp Debezium**
 
 Debezium lưu timestamp dưới dạng **epoch microseconds** (số nguyên), không phải milliseconds thông thường. Spark không tự nhận ra định dạng này. Nhóm dùng hàm `timestamp_micros()` của Spark SQL để chuyển đổi đúng.
 
-**Bước 4 — Gộp thanh toán về grain đơn hàng**
+- **Bước 4 — Gộp thanh toán về grain đơn hàng**
 
 Bảng `order_payments` có nhiều dòng trên cùng `order_id` (1 đơn có thể thanh toán nhiều lần, chia nhỏ installments). Nếu join trực tiếp, mỗi dòng order\_item sẽ bị nhân lên bằng số lần thanh toán.
 
 Giải pháp: `GROUP BY order_id`, tính `SUM(payment_value)` làm `order_payment_value`, lấy loại thanh toán chiếm giá trị lớn nhất làm `payment_type` chủ đạo.
 
-**Bước 5 — Lấy review mới nhất/đơn hàng**
+- **Bước 5 — Lấy review mới nhất/đơn hàng**
 
 `order_reviews` có thể có nhiều review trên cùng `order_id` (khách review nhiều lần). Dùng Window: `ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY review_creation_date DESC)`, chỉ giữ review mới nhất.
 
-**Bước 6 — Join hợp nhất (9-way join)**
+- **Bước 6 — Join hợp nhất (9-way join)**
 
 Thứ tự join được thiết kế để bảng lớn nằm bên trái (driver), bảng nhỏ được broadcast:
 
@@ -410,17 +410,17 @@ Thứ tự join được thiết kế để bảng lớn nằm bên trái (drive
 - LEFT JOIN `broadcast(sellers)` (on seller\_id) — ~3K rows
 - LEFT JOIN `broadcast(geolocation)` (on zip\_code) — geo được group-by trước khi broadcast
 
-**Bước 7 — Kiểm tra chất lượng dữ liệu (DQ)**
+- **Bước 7 — Kiểm tra chất lượng dữ liệu (DQ)**
 
 Lọc bỏ dòng thiếu các trường khóa: `order_id IS NOT NULL` và `purchase_ts IS NOT NULL`. Các dòng này là CDC noise (sự kiện không hoàn chỉnh) và không có giá trị phân tích.
 
-**Bước 8 — Ghi Silver**
+- **Bước 8 — Ghi Silver**
 
 Ghi Parquet sang `s3a://silver-zone/olist_unified_silver/` với mode `overwrite` (toàn bộ recompute mỗi lần chạy — đảm bảo correctness, đánh đổi tốc độ).
 
 ---
 
-## 3.5. Spark Batch: Silver → Gold
+## Spark Batch: Silver → Gold
 
 ### Mục tiêu
 
@@ -448,7 +448,7 @@ Từ bảng Silver thống nhất, tạo ra 14 Gold collection phục vụ 5 nh�
 - **Monetary:** tổng giá trị thanh toán.
 - **Điểm NTILE 1–5:** chia mỗi chiều thành 5 phân vị. Recency nghịch đảo (gần nhất = 5 điểm).
 - **Phân khúc khách hàng:** Champion (R≥4, F≥4), Loyal (F≥4), Lost (R≤2, F≤2), At Risk (R≤2), Standard.
-- Cột `churn_probability`, `clv_predicted` để `null` (MLlib phase sau).
+- Cột `churn_probability`, `clv_predicted` để `null` (MLlib sau).
 
 **Breakdowns:**
 - `gold_customer_acquisition` — phân biệt khách mới (first purchase) vs. khách quay lại theo ngày.
@@ -458,7 +458,7 @@ Từ bảng Silver thống nhất, tạo ra 14 Gold collection phục vụ 5 nh�
 **Collection `gold_product_metrics`:**
 - Doanh thu, số đơn, điểm review trung bình, tỷ lệ hủy (`product_return_rate`) theo sản phẩm × ngày.
 - `category_rank`: RANK() trong cùng danh mục × ngày theo doanh thu.
-- Cột `review_sentiment`, `recommended_products` để `null` (NLP/ALS phase sau).
+- Cột `review_sentiment`, `recommended_products` để `null` (NLP/ALS sau).
 
 **Breakdowns:**
 - `gold_top_products_daily` — TOP 10 sản phẩm theo ngày (Window RANK).
@@ -471,7 +471,7 @@ Từ bảng Silver thống nhất, tạo ra 14 Gold collection phục vụ 5 nh�
 - Doanh thu, số đơn, điểm review trung bình, số bang phủ sóng (`geographic_coverage`) theo seller.
 - `seller_revenue_rank`: RANK() tất cả seller theo doanh thu.
 - Thời gian giao hàng trung bình, `seller_fulfillment_rate` (tỷ lệ đúng hạn).
-- Cột `seller_network_centrality`, `seller_cluster`, `fraud_risk_score` để `null` (GraphFrames/ML phase sau).
+- Cột `seller_network_centrality`, `seller_cluster`, `fraud_risk_score` để `null` (GraphFrames/ML sau).
 
 **Breakdowns:**
 - `gold_seller_daily` — doanh số, giao hàng theo seller × ngày.
@@ -483,7 +483,7 @@ Từ bảng Silver thống nhất, tạo ra 14 Gold collection phục vụ 5 nh�
 - Tính `delivery_days = DATEDIFF(delivered_date, purchase_date)`.
 - `on_time = (delivered ≤ estimated)` — boolean cast thành integer.
 - Tổng hợp theo bang × ngày: `on_time_delivery_rate`, `avg_delivery_time_days`, `late_delivery_count`.
-- Cột `predicted_delivery_days`, `delivery_hotspot` để `null` (Random Forest phase sau).
+- Cột `predicted_delivery_days`, `delivery_hotspot` để `null` (Random Forest sau).
 
 ### Ghi Gold vào 3 sinks
 
@@ -495,7 +495,7 @@ Hàm `write_to_gold()` tái sử dụng `MongoConnector.bulk_upsert()` cho cả 
 
 ---
 
-## 3.6. Airflow DAG và Orchestration
+## Airflow DAG và Orchestration
 
 ### DAG `batch_pipeline`
 
@@ -520,7 +520,7 @@ Hàm `write_to_gold()` tái sử dụng `MongoConnector.bulk_upsert()` cho cả 
 
 ---
 
-## 3.7. Triển khai Kubernetes
+## Triển khai Kubernetes
 
 ### Cấu trúc namespace `bigdata`
 
@@ -548,7 +548,7 @@ Mỗi service được triển khai trong một Deployment riêng với Service 
 
 ---
 
-## 3.8. Cấu hình môi trường
+## Cấu hình môi trường
 
 ### File `init/.env`
 
@@ -566,11 +566,11 @@ Spark jobs đọc cấu hình từ biến môi trường thay vì hardcode, đư
 
 ---
 
-# IV. BÀI HỌC KINH NGHIỆM (LESSONS LEARNED)
+# BÀI HỌC KINH NGHIỆM (LESSONS LEARNED)
 
 ---
 
-## Bài học 1: Thu thập dữ liệu
+## Thu thập dữ liệu
 
 ### Tìm kiếm nguồn dữ liệu
 
@@ -588,11 +588,11 @@ Nhóm cần có một bộ dữ liệu bán hàng đủ chất lượng để th
 
 #### Cách tiếp cận đã thử
 
-**Cách 1:** Thử tìm các sàn thương mại điện tử: phần này khi nhóm triển khai tìm kiếm trong vòng 3-4 ngày, kết quả không khả quan do các sàn đều có chính sách chống cào dữ liệu. Nhóm cũng đã thử tìm các tool cào dữ liệu trên mạng nhưng hầu hết đều có trả phí.
+- **Cách 1:** Thử tìm các sàn thương mại điện tử: phần này khi nhóm triển khai tìm kiếm trong vòng 3-4 ngày, kết quả không khả quan do các sàn đều có chính sách chống cào dữ liệu. Nhóm cũng đã thử tìm các tool cào dữ liệu trên mạng nhưng hầu hết đều có trả phí.
 
-**Cách 2:** Tự viết script typescript can thiệp vào đọc gói tin trả về từ các api và đọc response. Cách này tỏ ra hiệu quả đối với shopee, nhưng nhược điểm là cả nhóm phải chuyển trang thủ công để shopee gọi api mới, hiệu suất cũng không cao. Nhóm mất khoảng 4 ngày để setup và test hiệu năng của phương pháp này, phương pháp này làm song song với phương pháp 1. Mặt tối của phương pháp này còn nằm ở điểm là cả nhóm không biết thế nào mới là data đủ tốt để thực hiện việc xử lý.
+- **Cách 2:** Tự viết script typescript can thiệp vào đọc gói tin trả về từ các api và đọc response. Cách này tỏ ra hiệu quả đối với shopee, nhưng nhược điểm là cả nhóm phải chuyển trang thủ công để shopee gọi api mới, hiệu suất cũng không cao. Nhóm mất khoảng 4 ngày để setup và test hiệu năng của phương pháp này, phương pháp này làm song song với phương pháp 1. Mặt tối của phương pháp này còn nằm ở điểm là cả nhóm không biết thế nào mới là data đủ tốt để thực hiện việc xử lý.
 
-**Cách 3:** Tìm kiếm nguồn dữ liệu trên mạng thông qua các trang như Kagger,... Cách này tỏ ra hiệu quả hơn nhiều so với những phương pháp trên, vửa giúp nhóm xây dựng được demo database vừa xác định được schema cần triển khai.
+- **Cách 3:** Tìm kiếm nguồn dữ liệu trên mạng thông qua các trang như Kagger,... Cách này tỏ ra hiệu quả hơn nhiều so với những phương pháp trên, vửa giúp nhóm xây dựng được demo database vừa xác định được schema cần triển khai.
 
 #### Giải pháp cuối cùng
 
@@ -622,11 +622,11 @@ Nhóm cần thiết lập Debezium để bắt mọi thay đổi từ PostgreSQL
 
 #### Cách tiếp cận đã thử
 
-**Cách 1:** Giữ `decimal.handling.mode` mặc định (`precise`), cố gắng parse base64 trong Spark bằng UDF. Không khả thi vì cần viết thêm Avro decoder, phức tạp không cần thiết.
+- **Cách 1:** Giữ `decimal.handling.mode` mặc định (`precise`), cố gắng parse base64 trong Spark bằng UDF. Không khả thi vì cần viết thêm Avro decoder, phức tạp không cần thiết.
 
-**Cách 2:** Thay `decimal.handling.mode: double` trong connector config, xóa connector cũ và đăng ký lại. Gặp lỗi: replication slot tên `debezium_slot` đã tồn tại trong PostgreSQL.
+- **Cách 2:** Thay `decimal.handling.mode: double` trong connector config, xóa connector cũ và đăng ký lại. Gặp lỗi: replication slot tên `debezium_slot` đã tồn tại trong PostgreSQL.
 
-**Cách 3:** Đăng nhập PostgreSQL, drop slot thủ công bằng `SELECT pg_drop_replication_slot('debezium_slot')`, sau đó đăng ký lại connector.
+- **Cách 3:** Đăng nhập PostgreSQL, drop slot thủ công bằng `SELECT pg_drop_replication_slot('debezium_slot')`, sau đó đăng ký lại connector.
 
 #### Giải pháp cuối cùng
 
@@ -645,9 +645,9 @@ Nhóm cần thiết lập Debezium để bắt mọi thay đổi từ PostgreSQL
 
 ---
 
-## Bài học 2: Xử lý dữ liệu với Spark 
+## Xử lý dữ liệu với Spark 
 
-### 2.1. Phân tầng Medallion và Khử trùng lặp CDC
+### Phân tầng Medallion và Khử trùng lặp CDC
 
 #### Mô tả vấn đề
 
@@ -665,11 +665,11 @@ Khi Debezium CDC bắt thay đổi, mỗi UPDATE trên một bản ghi tạo ra 
 
 #### Cách tiếp cận đã thử
 
-**Cách 1:** Dùng `DISTINCT` sau join để khử trùng. Không đúng vì `DISTINCT` không giải quyết được vấn đề CDC dedup theo key — bản ghi cũ và mới khác nhau ở một vài cột giá trị, không phải duplicate hoàn toàn.
+- **Cách 1:** Dùng `DISTINCT` sau join để khử trùng. Không đúng vì `DISTINCT` không giải quyết được vấn đề CDC dedup theo key — bản ghi cũ và mới khác nhau ở một vài cột giá trị, không phải duplicate hoàn toàn.
 
-**Cách 2:** Broadcast geolocation trực tiếp (~1M dòng). Gây OOM trên Worker 2GB.
+- **Cách 2:** Broadcast geolocation trực tiếp (~1M dòng). Gây OOM trên Worker 2GB.
 
-**Cách 3:** GROUP BY `geolocation_zip_code_prefix`, lấy lat/lng trung bình trước khi broadcast. Kết quả: ~65K distinct zip codes — đủ nhỏ để broadcast.
+- **Cách 3:** GROUP BY `geolocation_zip_code_prefix`, lấy lat/lng trung bình trước khi broadcast. Kết quả: ~65K distinct zip codes — đủ nhỏ để broadcast.
 
 #### Giải pháp cuối cùng
 
@@ -686,7 +686,7 @@ Khi Debezium CDC bắt thay đổi, mỗi UPDATE trên một bản ghi tạo ra 
 - Bảng có nhiều-dòng-per-key phải được gộp về grain phù hợp trước khi tham gia join chain.
 - Chiến lược broadcast: chỉ broadcast bảng dưới ~100MB. Với bảng lớn, pre-aggregate trước rồi broadcast kết quả đã gộp.
 
-### 2.2. Khai phá luồng dữ liệu hành vi với Spark Structured Streaming
+### Khai phá luồng dữ liệu hành vi với Spark Structured Streaming
 
 #### Mô tả vấn đề
 
@@ -714,9 +714,9 @@ Khi Debezium CDC bắt thay đổi, mỗi UPDATE trên một bản ghi tạo ra 
 
 ---
 
-## Bài học 3: Xử lý luồng
+## Xử lý luồng
 
-### 3.1. Xử lý cấu hình S3 Sink Connector để đảm bảo flush đúng
+### Xử lý cấu hình S3 Sink Connector để đảm bảo flush đúng
 
 #### Mô tả vấn đề
 
@@ -734,11 +734,11 @@ S3 Sink Connector phụ trách việc flush dữ liệu từ Kafka vào MinIO. N
 
 #### Cách tiếp cận đã thử
 
-**Cách 1:** Giảm `flush.size=10` để flush sớm hơn. Tạo quá nhiều small Parquet files, không tốt cho Spark (small file problem).
+- **Cách 1:** Giảm `flush.size=10` để flush sớm hơn. Tạo quá nhiều small Parquet files, không tốt cho Spark (small file problem).
 
-**Cách 2:** Bật `value.converter.schemas.enable=false`. Gây lỗi: `ParquetFormat requires schema`.
+- **Cách 2:** Bật `value.converter.schemas.enable=false`. Gây lỗi: `ParquetFormat requires schema`.
 
-**Cách 3:** Giữ `value.converter.schemas.enable=true`, thêm `rotate.schedule.interval.ms=60000` để đảm bảo flush theo thời gian dù chưa đủ batch size.
+- **Cách 3:** Giữ `value.converter.schemas.enable=true`, thêm `rotate.schedule.interval.ms=60000` để đảm bảo flush theo thời gian dù chưa đủ batch size.
 
 #### Giải pháp cuối cùng
 
@@ -754,7 +754,7 @@ S3 Sink Connector phụ trách việc flush dữ liệu từ Kafka vào MinIO. N
 - `flush.size` và `rotate.schedule.interval.ms` là hai cơ chế flush độc lập — nên cấu hình cả hai để đảm bảo flush đúng hạn kể cả khi traffic thấp.
 - Small file problem trong data lake là thực sự — file quá nhỏ làm Spark mất nhiều overhead mở file hơn xử lý data. Flush 1000 records/file là điểm cân bằng hợp lý cho dataset này.
 
-### 3.2. Quản lý Cửa sổ thời gian, Watermarking và Chịu lỗi qua MinIO Checkpoint
+### Quản lý Cửa sổ thời gian, Watermarking và Chịu lỗi qua MinIO Checkpoint
 
 #### Mô tả vấn đề
 
@@ -785,7 +785,7 @@ Luồng dữ liệu hành vi người dùng là dòng dịch chuyển liên tụ
 
 ---
 
-## Bài học 4: Gold Layer — Tổng hợp dữ liệu nghiệp vụ và đồng bộ đa hệ thống lưu trữ
+## Gold Layer — Tổng hợp dữ liệu nghiệp vụ và đồng bộ đa hệ thống lưu trữ
 
 ### Cấu hình Debezium CDC cho PostgreSQL
 
@@ -858,7 +858,7 @@ có thể tạo ra duplicate document trong MongoDB.
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Cho ứng dụng đọc trực tiếp dữ liệu Silver.
+- **Cách 1:** Cho ứng dụng đọc trực tiếp dữ liệu Silver.
 
 Không tối ưu vì Silver chứa dữ liệu chi tiết.
 
@@ -875,7 +875,7 @@ Khi dữ liệu tăng, thời gian xử lý cũng tăng theo.
 
 ---
 
-**Cách 2:** Spark ghi trực tiếp từng record sang MongoDB.
+- **Cách 2:** Spark ghi trực tiếp từng record sang MongoDB.
 
 Mỗi Spark partition tự ghi dữ liệu:
 
@@ -895,7 +895,7 @@ MongoDB
 
 ---
 
-**Cách 3:** Sử dụng insert thông thường khi ghi Gold.
+- **Cách 3:** Sử dụng insert thông thường khi ghi Gold.
 
 Nếu pipeline chạy lại:
 
@@ -911,7 +911,7 @@ sẽ tạo nhiều document trùng nhau.
 
 ### Giải pháp cuối cùng
 
-#### 1. Xây dựng Gold Dataset bằng Aggregation
+#### Xây dựng Gold Dataset bằng Aggregation
 
 Dữ liệu Silver được tổng hợp thành các bảng nghiệp vụ phù hợp với mục đích sử dụng.
 
@@ -984,7 +984,7 @@ Tổng giá trị khách hàng đã chi tiêu.
 
 ---
 
-#### 2. Multi-Sink Pattern
+#### Multi-Sink Pattern
 
 Sau khi tạo Gold DataFrame, dữ liệu được ghi ra nhiều hệ thống.
 
@@ -1046,7 +1046,7 @@ Cách này giúp:
 
 ---
 
-#### 3. Bulk Upsert đảm bảo Idempotent
+#### Bulk Upsert đảm bảo Idempotent
 
 Pipeline có thể chạy lại nhiều lần.
 
@@ -1108,7 +1108,7 @@ seller_id
 
 ---
 
-#### 4. Tối ưu MongoDB bằng Index
+#### Tối ưu MongoDB bằng Index
 
 Sau khi load Gold data, pipeline tự động tạo index.
 
@@ -1171,7 +1171,7 @@ chỉ đọc phần dữ liệu cần thiết.
 
 ---
 
-## Bài học 5: Tích hợp hệ thống
+## Tích hợp hệ thống
 
 ### Triển khai bước đầu - Quản lý đa mạng lưới cô lập bằng Multi-network Docker Compose
 
@@ -1191,9 +1191,9 @@ Hệ thống gồm 13 Docker services cần giao tiếp theo nhiều chiều: De
 
 #### Cách tiếp cận đã thử
 
-**Cách 1:** Đặt tất cả services vào một Docker network duy nhất. Vấn đề bảo mật — mọi service đều nhìn thấy nhau.
+- **Cách 1:** Đặt tất cả services vào một Docker network duy nhất. Vấn đề bảo mật — mọi service đều nhìn thấy nhau.
 
-**Cách 2:** Dùng multi-network Docker Compose — mỗi service join đúng các networks cần thiết. Cần thiết kế cẩn thận.
+- **Cách 2:** Dùng multi-network Docker Compose — mỗi service join đúng các networks cần thiết. Cần thiết kế cẩn thận.
 
 #### Giải pháp cuối cùng
 
@@ -1215,7 +1215,7 @@ Services cần giao tiếp nhiều chiều (debezium, spark, airflow) được j
 - Dùng Docker DNS hostname (tên service trong compose) thay vì IP address — IP thay đổi khi container restart, hostname thì không.
 - Kiểm tra network bằng `docker network inspect <network>` để xác nhận đúng services trong network trước khi debug connectivity issue.
 
-### 5.2 Kiến trúc Đồng bộ Đa nguồn Staging & Transaction qua foreachBatch
+### Kiến trúc Đồng bộ Đa nguồn Staging & Transaction qua foreachBatch
 
 #### Mô tả vấn đề
 
@@ -1248,7 +1248,7 @@ Phương thức foreachBatch phối hợp với chiến thuật bảng đệm St
 
 ---
 
-## Bài học 6: Tối ưu hiệu năng — Cấu hình Spark cho môi trường resource-constrained
+## Tối ưu hiệu năng — Cấu hình Spark cho môi trường resource-constrained
 
 ### Mô tả vấn đề
 
@@ -1266,11 +1266,11 @@ Môi trường phát triển là máy cá nhân (8GB RAM, 4 core). Spark Master 
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Tăng `spark.executor.memory=4g`. Conflict với Kafka và Airflow cùng chạy, toàn bộ hệ thống chậm hơn.
+- **Cách 1:** Tăng `spark.executor.memory=4g`. Conflict với Kafka và Airflow cùng chạy, toàn bộ hệ thống chậm hơn.
 
-**Cách 2:** Dùng `spark.sql.shuffle.partitions=10` thay vì mặc định 200 — phù hợp với dataset nhỏ.
+- **Cách 2:** Dùng `spark.sql.shuffle.partitions=10` thay vì mặc định 200 — phù hợp với dataset nhỏ.
 
-**Cách 3:** Cache Silver DataFrame (`silver.cache()`) trước khi dùng cho nhiều UC tables. Tránh đọc lại từ MinIO 5 lần.
+- **Cách 3:** Cache Silver DataFrame (`silver.cache()`) trước khi dùng cho nhiều UC tables. Tránh đọc lại từ MinIO 5 lần.
 
 ### Giải pháp cuối cùng
 
@@ -1289,7 +1289,7 @@ Môi trường phát triển là máy cá nhân (8GB RAM, 4 core). Spark Master 
 
 ---
 
-## Bài học 7: Giám sát và Gỡ lỗi — Theo dõi pipeline qua Airflow + Spark UI
+## Giám sát và Gỡ lỗi — Theo dõi pipeline qua Airflow + Spark UI
 
 ### Mô tả vấn đề
 
@@ -1307,11 +1307,11 @@ Khi pipeline có vấn đề, nhóm cần xác định nguyên nhân gốc rễ 
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Đọc Airflow task log từ đầu đến cuối. Quá dài (>10.000 dòng), mất nhiều thời gian.
+- **Cách 1:** Đọc Airflow task log từ đầu đến cuối. Quá dài (>10.000 dòng), mất nhiều thời gian.
 
-**Cách 2:** Tìm từ khóa `ERROR` hoặc `Exception` trong log. Bỏ sót warning quan trọng xuất hiện trước exception.
+- **Cách 2:** Tìm từ khóa `ERROR` hoặc `Exception` trong log. Bỏ sót warning quan trọng xuất hiện trước exception.
 
-**Cách 3:** Thiết lập hierarchy debugging: Airflow → Spark UI → Executor logs → Application logs.
+- **Cách 3:** Thiết lập hierarchy debugging: Airflow → Spark UI → Executor logs → Application logs.
 
 ### Giải pháp cuối cùng
 
@@ -1327,12 +1327,12 @@ Nhóm xây dựng quy trình debug 4 bước:
 
 - `Caused by:` trong Java stack trace là root cause thực sự — không đọc từ đầu mà tìm `Caused by:` cuối cùng trong chain.
 - Debezium connector status phân biệt trạng thái **connector** (worker process) và **task** (actual CDC thread) — connector RUNNING không có nghĩa task đang hoạt động.
-- Spark UI là công cụ không thể thiếu — debug qua log thuần túy là không đủ với distributed computing.
+- Spark UI là công cụ không thể thiếu — debug qua log thuần túy là không đủ with distributed computing.
 - Row count logging ở mỗi bước transform là "poor man's data observability" — đơn giản nhưng cực kỳ hữu ích.
 
 ---
 
-## Bài học 8: Mở rộng (Scaling) — Triển khai từ Docker Compose lên Kubernetes
+## Mở rộng (Scaling) — Triển khai từ Docker Compose lên Kubernetes
 
 ### Mô tả vấn đề
 
@@ -1350,11 +1350,11 @@ Sau khi pipeline hoạt động ổn định trên Docker Compose, nhóm cần p
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Dùng `initContainers` để wait-for PostgreSQL ready trước khi Debezium start. Đúng hướng nhưng phức tạp khi viết health check.
+- **Cách 1:** Dùng `initContainers` để wait-for PostgreSQL ready trước khi Debezium start. Đúng hướng nhưng phức tạp khi viết health check.
 
-**Cách 2:** Đóng gói code Spark vào Docker image. Cần build lại image mỗi khi sửa code — quá chậm cho development.
+- **Cách 2:** Đóng gói code Spark vào Docker image. Cần build lại image mỗi khi sửa code — quá chậm cho development.
 
-**Cách 3:** Dùng ConfigMap để mount code Spark vào `/opt/project/`. Linh hoạt, không cần build image khi sửa code.
+- **Cách 3:** Dùng ConfigMap để mount code Spark vào `/opt/project/`. Linh hoạt, không cần build image khi sửa code.
 
 ### Giải pháp cuối cùng
 
@@ -1368,12 +1368,12 @@ Sau khi pipeline hoạt động ổn định trên Docker Compose, nhóm cần p
 
 - Kubernetes không có `depends_on` như Docker Compose — phải tự xử lý startup ordering bằng `initContainers` hoặc readiness probes.
 - ConfigMap là cách mount code vào pod mà không rebuild image — lý tưởng cho development và demo.
-- Mỗi pod port cần Service tương ứng để accessible trong cluster — đây là khác biệt cơ bản so với Docker Compose.
+- Mỗi pod port cần Service tương ứng để accessible trong cluster — đây là khác biệt cơ bản so with Docker Compose.
 - `kubectl describe pod <pod>` và `kubectl logs <pod> --previous` là hai lệnh debug K8s phổ biến nhất.
 
 ---
 
-## Bài học 9: Chất lượng dữ liệu và Kiểm thử — Kiểm tra tính nhất quán qua các tầng Medallion
+## Chất lượng dữ liệu và Kiểm thử — Kiểm tra tính nhất quán qua các tầng Medallion
 
 ### Mô tả vấn đề
 
@@ -1391,11 +1391,11 @@ Với kiến trúc 3 tầng (Bronze → Silver → Gold), lỗi dữ liệu ở 
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Tin tưởng vào exit code của Spark job. Điều này theo nhóm thấy là `Không đủ` vì Spark có thể thành công với 0 dòng output.
+- **Cách 1:** Tin tưởng vào exit code của Spark job. Điều này theo nhóm thấy là `Không đủ` vì Spark có thể thành công with 0 dòng output.
 
-**Cách 2:** Thêm assertion trong Spark code: `assert silver.count() > 0, "Silver is empty"`. Dừng job khi có vấn đề nhưng không rõ vấn đề ở đâu.
+- **Cách 2:** Thêm assertion trong Spark code: `assert silver.count() > 0, "Silver is empty"`. Dừng job khi có vấn đề nhưng không rõ vấn đề ở đâu.
 
-**Cách 3:** Log row count sau mỗi bước transform quan trọng. Cung cấp visibility tốt hơn.
+- **Cách 3:** Log row count sau mỗi bước transform quan trọng. Cung cấp visibility tốt hơn.
 
 ### Giải pháp cuối cùng
 
@@ -1427,7 +1427,7 @@ Những check này được log ra trong Spark job — khi có số bất thư�
 
 ---
 
-## Bài học 10: Bảo mật và Quản trị — Quản lý credentials trong môi trường multi-service
+## Bảo mật và Quản trị — Quản lý credentials trong môi trường multi-service
 
 ### Mô tả vấn đề
 
@@ -1445,11 +1445,11 @@ Hệ thống có nhiều credentials: PostgreSQL password, MinIO access key/secr
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Dùng biến môi trường OS. Không portable, người khác clone repo cần cấu hình tay.
+- **Cách 1:** Dùng biến môi trường OS. Không portable, người khác clone repo cần cấu hình tay.
 
-**Cách 2:** File `.env` với `docker-compose` interpolation. Tiện lợi cho Docker Compose, nhưng vẫn cần xử lý `.env` cho Kubernetes.
+- **Cách 2:** File `.env` với `docker-compose` interpolation. Tiện lợi cho Docker Compose, nhưng vẫn cần xử lý `.env` for Kubernetes.
 
-**Cách 3:** Kubernetes Secrets + Docker `.env` file, loại trừ `.env` khỏi git.
+- **Cách 3:** Kubernetes Secrets + Docker `.env` file, loại trừ `.env` khỏi git.
 
 ### Giải pháp cuối cùng
 
@@ -1460,14 +1460,14 @@ Hệ thống có nhiều credentials: PostgreSQL password, MinIO access key/secr
 
 ### Điểm rút ra
 
-- `.env.example` (commit vào git) + `.env` thực (không commit) là pattern chuẩn cho quản lý credentials local.
-- Kubernetes Secrets không phải "thực sự bảo mật" (base64, không encrypt) nhưng tốt hơn plaintext trong YAML. Production cần HashiCorp Vault hoặc AWS Secrets Manager.
-- Code phải fail gracefully khi thiếu credentials (không crash, chỉ skip), đặc biệt với optional services như MongoDB Atlas.
+- `.env.example` (commit into git) + `.env` thực (không commit) là pattern chuẩn cho quản lý credentials local.
+- Kubernetes Secrets không phải "thực sự bảo mật" (base64, không encrypt) nhưng tốt hơn plaintext in YAML. Production cần HashiCorp Vault hoặc AWS Secrets Manager.
+- Code phải fail gracefully khi thiếu credentials (không crash, chỉ skip), đặc biệt with optional services như MongoDB Atlas.
 - Luôn scan git history trước khi public hóa repository (`git log -p | grep -i password`).
 
 ---
 
-## Bài học 11: Chịu lỗi — Xử lý restart và recovery trong pipeline phân tán
+## Chịu lỗi — Xử lý restart và recovery trong pipeline phân tán
 
 ### Mô tả vấn đề
 
@@ -1486,24 +1486,23 @@ Trong môi trường phát triển, service thường xuyên restart (OOM, Docke
 
 ### Cách tiếp cận đã thử
 
-**Cách 1:** Dùng Spark `overwrite` mode cho Silver/Gold. Đảm bảo idempotency — chạy lại bao nhiêu lần vẫn cho kết quả đúng, nhưng tốn thời gian recompute toàn bộ.
+- **Cách 1:** Dùng Spark `overwrite` mode cho Silver/Gold. Đảm bảo idempotency — chạy lại bao nhiêu lần vẫn cho kết quả đúng, nhưng tốn thời gian recompute toàn bộ.
 
-**Cách 2:** Kafka `enable.auto.commit=true` cho S3 Sink. Offset được commit sau khi flush thành công, restart không đọc lại từ đầu.
+- **Cách 2:** Kafka `enable.auto.commit=true` for S3 Sink. Offset được commit sau khi flush thành công, restart không đọc lại từ đầu.
 
-**Cách 3:** MongoDB `bulk_upsert` với key fields xác định — update nếu key tồn tại, insert nếu không. Idempotent cho Gold MongoDB.
+- **Cách 3:** MongoDB `bulk_upsert` with key fields xác định — update nếu key tồn tại, insert nếu không. Idempotent for Gold MongoDB.
 
 ### Giải pháp cuối cùng
 
 - **Spark `overwrite` mode:** Tất cả Silver và Gold write đều dùng `overwrite`. Đây là quyết định của cả nhóm để đánh đổi tốc độ lấy correctness và simplicity. Trong phase 1 batch, recompute toàn bộ mỗi ngày là chấp nhận được.
-- **Kafka offset commit:** Cấu hình S3 Sink với `offset.flush.interval.ms=10000`, đảm bảo offset được commit thường xuyên.
-- **MongoDB `bulk_upsert`:** Dùng `UpdateOne` với `upsert=True` và filter theo key fields. Chạy lại bao nhiêu lần vẫn không tạo duplicate.
+- **Kafka offset commit:** Cấu hình S3 Sink with `offset.flush.interval.ms=10000`, đảm bảo offset được commit thường xuyên.
+- **MongoDB `bulk_upsert`:** Dùng `UpdateOne` with `upsert=True` and filter theo key fields. Chạy lại bao nhiêu lần vẫn không tạo duplicate.
 - **Airflow `wait_bronze`:** Kiểm tra MinIO trước khi chạy Silver/Gold — nếu Bronze trống (có thể do Debezium chưa kịp flush sau restart), pipeline dừng sớm thay vì sinh ra Silver/Gold rỗng.
 - **Kết quả:** Pipeline có thể restart từ bất kỳ bước nào mà không cần manual intervention. Airflow DAG re-trigger cho kết quả đúng.
 
 ### Điểm rút ra
 
 - **Idempotency** là thuộc tính quan trọng nhất của pipeline phân tán — mỗi bước phải cho cùng kết quả dù chạy 1 hay N lần.
-- `overwrite` mode là giải pháp đơn giản nhất để đảm bảo idempotency cho batch pipeline. Incremental/append cần cơ chế dedup phức tạp hơn.
-- MongoDB `upsert` thay vì `insert` là default assumption cho serving layer — dữ liệu luôn được cập nhật, không bao giờ duplicate.
+- `overwrite` mode là giải pháp đơn giản nhất để đảm bảo idempotency for batch pipeline. Incremental/append cần cơ chế dedup phức tạp hơn.
+- MongoDB `upsert` thay vì `insert` là default assumption for serving layer — dữ liệu luôn được cập nhật, không bao giờ duplicate.
 - Thiết kế recovery path trước khi cần, không phải sau khi sự cố xảy ra. Câu hỏi cần tự hỏi: "Nếu bước này fail, pipeline có thể tiếp tục từ đâu?"
-

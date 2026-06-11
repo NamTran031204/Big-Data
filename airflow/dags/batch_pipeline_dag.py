@@ -172,7 +172,7 @@ def batch_pipeline():
         conn_id=SPARK_CONN_ID,
         application=f"{PROJECT_DIR}/spark-batch/transform_bronze_to_silver.py",
         name="olist_bronze_to_silver",
-        deploy_mode="client",
+        deploy_mode="cluster",
         packages=SPARK_PACKAGES,
         conf={
             "spark.driver.memory": "1g",
