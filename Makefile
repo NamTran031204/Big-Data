@@ -92,13 +92,17 @@ register-connectors:
 	cd init && bash register-s3-sink.sh
 
 k8s-register-connectors:
-	@bash -c '\
-		kubectl -n $(NS) port-forward svc/debezium-connect 18083:8083 & PF=$$!; \
-		echo "⏳ Port-forward debezium-connect :18083 -> đợi 5s..."; \
-		sleep 5; \
-		CONNECT_URL=http://localhost:18083 DB_HOSTNAME=postgres bash init/register-connector.sh && \
-		CONNECT_URL=http://localhost:18083 bash init/register-s3-sink.sh; \
-		kill $$PF 2>/dev/null || true'
+	$(eval POD := $(shell kubectl -n $(NS) get pod -l app=debezium-connect -o jsonpath='{.items[0].metadata.name}'))
+	@echo "🚀 Đang chuyển script vào Pod: $(POD)..."
+	kubectl -n $(NS) cp init/register-connector.sh $(POD):/tmp/register-connector.sh
+	kubectl -n $(NS) cp init/register-s3-sink.sh $(POD):/tmp/register-s3-sink.sh
+	@echo "⚙️ Đang thực thi đăng ký connector bên trong Pod (xử lý lỗi CRLF)..."
+	kubectl -n $(NS) exec $(POD) -- sh -c "tr -d '\r' < /tmp/register-connector.sh > /tmp/clean-register-connector.sh"
+	kubectl -n $(NS) exec $(POD) -- sh -c "tr -d '\r' < /tmp/register-s3-sink.sh > /tmp/clean-register-s3-sink.sh"
+	kubectl -n $(NS) exec $(POD) -- chmod +x /tmp/clean-register-connector.sh /tmp/clean-register-s3-sink.sh
+	kubectl -n $(NS) exec $(POD) -- sh -c "CONNECT_URL=http://localhost:8083 DB_HOSTNAME=postgres /tmp/clean-register-connector.sh"
+	kubectl -n $(NS) exec $(POD) -- sh -c "CONNECT_URL=http://localhost:8083 /tmp/clean-register-s3-sink.sh"
+	@echo "✅ Đã đăng ký xong!"
 
 run-silver:
 	docker exec -i spark-master /opt/spark/bin/spark-submit \

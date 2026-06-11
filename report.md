@@ -12,15 +12,15 @@
 
 Thương mại điện tử là một trong những lĩnh vực sản sinh dữ liệu với tốc độ và khối lượng lớn nhất hiện nay. Mỗi giây, hàng nghìn đơn hàng được đặt, hàng chục nghìn sự kiện người dùng được ghi lại — từ lượt xem sản phẩm, thao tác thêm vào giỏ hàng, cho đến hoàn tất thanh toán và đánh giá sau mua. Các hệ thống OLTP truyền thống (quan hệ, transaction-based) không được thiết kế để xử lý phân tích trên quy mô này trong thời gian thực.
 
-Nhóm lựa chọn bài toán: **Xây dựng hệ thống phân tích dữ liệu thương mại điện tử theo kiến trúc Lambda**, sử dụng bộ dữ liệu thực tế Olist — một sàn thương mại điện tử lớn của Brazil, với dữ liệu đã được công bố công khai trên Kaggle.
+Nhóm lựa chọn bài toán: **Xây dựng hệ thống phân tích dữ liệu thương mại điện tử**, sử dụng bộ dữ liệu thực tế từ sàn Olist — một sàn thương mại điện tử lớn của Brazil, với dữ liệu đã được công bố công khai trên Kaggle.
 
 ### Mô tả bài toán
 
-Từ hệ thống vận hành OLTP (PostgreSQL), nhóm xây dựng một pipeline xử lý dữ liệu lớn end-to-end gồm:
+Từ hệ thống vận hành OLTP (PostgreSQL), nhóm xây dựng một pipeline xử lý dữ liệu lớn, mục tiêu là biến dữ liệu từ data thô thành **Thông tin**. Các thành phần của luồng dữ liệu gồm:
 
 - **Thu thập dữ liệu liên tục** từ PostgreSQL thông qua cơ chế Change Data Capture (CDC) — bắt mọi thay đổi INSERT/UPDATE/DELETE tại nguồn mà không ảnh hưởng đến hệ thống giao dịch.
 - **Phân tầng dữ liệu** theo mô hình Medallion: Bronze (dữ liệu thô CDC) → Silver (dữ liệu đã làm sạch, hợp nhất) → Gold (dữ liệu đã tổng hợp, sẵn sàng phân tích).
-- **Tổng hợp 5 nhóm chỉ số kinh doanh** cốt lõi: doanh thu, hành vi khách hàng (RFM), hiệu suất sản phẩm, mạng lưới nhà bán hàng, và hiệu suất giao vận.
+- **Tổng hợp các nhóm chỉ số kinh doanh** cốt lõi: doanh thu, hành vi khách hàng (RFM), hiệu suất sản phẩm, mạng lưới nhà bán hàng.
 - **Lưu trữ kết quả Gold** vào ba đích đến: MinIO (data lake dạng Parquet), MongoDB cục bộ, và MongoDB Atlas (cloud).
 - **Điều phối toàn bộ pipeline** qua Apache Airflow và triển khai trên Kubernetes.
 
@@ -47,7 +47,7 @@ Bộ dữ liệu **Brazilian E-Commerce Public Dataset by Olist** gồm 9 bảng
 ### Tại sao bài toán này cần kiến trúc Big Data?
 
 **Về khối lượng dữ liệu (Volume):**
-- Dataset Olist là dữ liệu tĩnh lịch sử (~300MB gốc), nhưng trong thực tế triển khai, dữ liệu được bổ sung liên tục qua cơ chế CDC. Mỗi thay đổi trong PostgreSQL tạo ra một sự kiện Kafka, và theo thời gian Bronze zone tích lũy hàng triệu bản ghi CDC.
+- Dataset Olist là dữ liệu tĩnh lịch sử với hơn 300MB dung lượng gốc, nhưng trong thực tế triển khai, dữ liệu được bổ sung liên tục qua cơ chế CDC. Mỗi thay đổi trong PostgreSQL tạo ra một sự kiện Kafka, và theo thời gian Bronze zone tích lũy hàng triệu bản ghi CDC.
 - Bảng geolocation có ~1 triệu dòng — không thể broadcast trực tiếp mà cần chiến lược join tối ưu.
 - Gold layer ghi song song vào 3 đích đến, với 14+ collection khác nhau, đòi hỏi xử lý phân tán.
 
@@ -75,7 +75,7 @@ Nếu chỉ dùng PostgreSQL hoặc một ứng dụng Python đơn lẻ:
 
 ## 1.3. Phạm vi và giới hạn dự án
 
-### Phạm vi đã triển khai (Phase 1)
+### Phạm vi đã triển khai
 
 - Toàn bộ Batch Layer: CDC → Bronze → Silver → Gold (3 sinks).
 - Speed Layer (Real-time Streaming): Phát triển thành công luồng xử lý dữ liệu thời gian thực sử dụng Spark Structured Streaming tích hợp Apache Kafka. Hệ thống thực hiện đón bắt dòng sự kiện hành vi người dùng (`user_behavior_events`) liên tục theo mô hình bảng không giới hạn (*Unbounded Table*), tính toán cộng dồn điểm ưa thích theo phễu chuyển đổi (VIEW, CLICK, ADD_TO_CART, PURCHASE).
@@ -84,14 +84,11 @@ Nếu chỉ dùng PostgreSQL hoặc một ứng dụng Python đơn lẻ:
 - Orchestration: Airflow DAG `batch_pipeline` với 4 bước.
 - Triển khai Docker Compose (môi trường phát triển) và Kubernetes/Minikube (môi trường sản xuất giả lập).
 - 5 nhóm chỉ số Gold với tổng cộng 14 collection.
-- Kiểm thử end-to-end theo tài liệu `docs/huong-dan-test.md`.
 
 ### Phạm vi chưa triển khai (Phase 2 — tương lai)
 
-- **SpringBoot Fake Insert:** Service tự động sinh dữ liệu đơn hàng giả và sự kiện hành vi để demo CDC realtime.
 - **ML/MLlib columns:** Các chỉ số học máy trong Gold (churn\_probability, clv\_predicted, review\_sentiment, fraud\_risk\_score, predicted\_delivery\_days) hiện được để `null`.
 - **GraphFrames:** PageRank cho mạng lưới nhà bán hàng (seller\_network\_centrality, seller\_cluster).
-- **Monitoring:** Grafana dashboard, Prometheus metrics.
 - **CI/CD và Secret Management** (Vault/k8s Secrets).
 
 ---
@@ -139,7 +136,7 @@ Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (
 **Apache Kafka 7.5 (Confluent)**
 - Vai trò: Message broker trung gian, đệm dữ liệu CDC trước khi ghi vào Bronze zone.
 - Topics được tạo tự động: `olist_cdc.public.<tên_bảng>` (9 topics tương ứng 9 bảng).
-- Phân vùng: 1 partition/topic (đủ cho demo, production cần nhiều hơn).
+- Phân vùng: 1 partition/topic (hiện tại nhóm mới cấu hình đủ demo, production cần nhiều hơn để đáp ứng được hệ thống thực tế).
 
 **Confluent S3 Sink Connector**
 - Vai trò: Đọc Kafka topics và ghi Parquet snappy vào MinIO Bronze zone.
@@ -165,15 +162,11 @@ Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (
 
 ### Nhóm Serving Layer
 
-**MongoDB 7.0 (cục bộ)**
+**MongoDB**
 - Vai trò: Serving layer cho Gold data, lưu trữ các collection tổng hợp dưới dạng document.
 - Database: `olist_gold`.
 - Ghi bằng bulk\_upsert — cập nhật nếu tồn tại theo key fields, insert nếu chưa có.
 - Index: compound index trên (dimension\_id, ingest\_date) cho các collection có chiều cao cardinality.
-
-**MongoDB Atlas (Cloud)**
-- Vai trò: Mirror của MongoDB cục bộ, cho phép truy vấn từ bên ngoài hạ tầng.
-- Tự động bỏ qua khi biến môi trường `MONGO_ATLAS_URI` để trống.
 
 ### Nhóm Điều phối
 
@@ -186,7 +179,7 @@ Nhóm chọn **Kiến trúc Lambda** vì bài toán yêu cầu đồng thời: (
 
 **Docker Compose** — môi trường phát triển: 13 services trên 4 Docker network.
 
-**Kubernetes (Minikube)** — môi trường sản xuất giả lập: namespace `bigdata` với đầy đủ Deployment, Service, PersistentVolumeClaim, ConfigMap, Secret.
+**Kubernetes (Minikube)** — môi trường có namespace `bigdata` với đầy đủ Deployment, Service, PersistentVolumeClaim, ConfigMap, Secret.
 
 ---
 
