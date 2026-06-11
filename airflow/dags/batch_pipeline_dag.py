@@ -175,9 +175,9 @@ def batch_pipeline():
         deploy_mode="client",
         packages=SPARK_PACKAGES,
         conf={
-            "spark.driver.memory": "2g",
-            "spark.executor.memory": "2g",
-            "spark.executor.cores": "2",
+            "spark.driver.memory": "1g",
+            "spark.executor.memory": "1g",
+            "spark.executor.cores": "1",
         },
         env_vars=MINIO_ENV,
         verbose=False,

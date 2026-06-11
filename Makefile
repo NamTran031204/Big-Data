@@ -91,19 +91,6 @@ register-connectors:
 	cd init && bash register-connector.sh
 	cd init && bash register-s3-sink.sh
 
-k8s-register-connectors:
-	$(eval POD := $(shell kubectl -n $(NS) get pod -l app=debezium-connect -o jsonpath='{.items[0].metadata.name}'))
-	@echo "🚀 Đang chuyển script vào Pod: $(POD)..."
-	kubectl -n $(NS) cp init/register-connector.sh $(POD):/tmp/register-connector.sh
-	kubectl -n $(NS) cp init/register-s3-sink.sh $(POD):/tmp/register-s3-sink.sh
-	@echo "⚙️ Đang thực thi đăng ký connector bên trong Pod (xử lý lỗi CRLF)..."
-	kubectl -n $(NS) exec $(POD) -- sh -c "tr -d '\r' < /tmp/register-connector.sh > /tmp/clean-register-connector.sh"
-	kubectl -n $(NS) exec $(POD) -- sh -c "tr -d '\r' < /tmp/register-s3-sink.sh > /tmp/clean-register-s3-sink.sh"
-	kubectl -n $(NS) exec $(POD) -- chmod +x /tmp/clean-register-connector.sh /tmp/clean-register-s3-sink.sh
-	kubectl -n $(NS) exec $(POD) -- sh -c "CONNECT_URL=http://localhost:8083 DB_HOSTNAME=postgres /tmp/clean-register-connector.sh"
-	kubectl -n $(NS) exec $(POD) -- sh -c "CONNECT_URL=http://localhost:8083 /tmp/clean-register-s3-sink.sh"
-	@echo "✅ Đã đăng ký xong!"
-
 run-silver:
 	docker exec -i spark-master /opt/spark/bin/spark-submit \
 		--master spark://spark-master:7077 \
@@ -189,6 +176,19 @@ k8s-up:
 	kubectl apply -f k8s/50-spark.yaml
 	kubectl apply -f k8s/60-airflow.yaml
 	@echo "⏳ Đợi pods Ready: kubectl -n $(NS) get pods -w"
+
+k8s-register-connectors:
+	$(eval POD := $(shell kubectl -n $(NS) get pod -l app=debezium-connect -o jsonpath='{.items[0].metadata.name}'))
+	@echo "🚀 Đang chuyển script vào Pod: $(POD)..."
+	kubectl -n $(NS) cp init/register-connector.sh $(POD):/tmp/register-connector.sh
+	kubectl -n $(NS) cp init/register-s3-sink.sh $(POD):/tmp/register-s3-sink.sh
+	@echo "⚙️ Đang thực thi đăng ký connector bên trong Pod (xử lý lỗi CRLF)..."
+	kubectl -n $(NS) exec $(POD) -- sh -c "tr -d '\r' < /tmp/register-connector.sh > /tmp/clean-register-connector.sh"
+	kubectl -n $(NS) exec $(POD) -- sh -c "tr -d '\r' < /tmp/register-s3-sink.sh > /tmp/clean-register-s3-sink.sh"
+	kubectl -n $(NS) exec $(POD) -- chmod +x /tmp/clean-register-connector.sh /tmp/clean-register-s3-sink.sh
+	kubectl -n $(NS) exec $(POD) -- sh -c "CONNECT_URL=http://localhost:8083 DB_HOSTNAME=postgres /tmp/clean-register-connector.sh"
+	kubectl -n $(NS) exec $(POD) -- sh -c "CONNECT_URL=http://localhost:8083 /tmp/clean-register-s3-sink.sh"
+	@echo "✅ Đã đăng ký xong!"
 
 # Nạp CSV vào Postgres trong cluster: copy CSV vào pod rồi chạy 02-load.sql
 seed-postgres-k8s:
