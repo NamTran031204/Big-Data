@@ -15,7 +15,7 @@ import os
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 
-from services.mongodb_connect.mongo_connector import MongoConnector
+from mongo_connector import MongoConnector
 
 # ==========================================================
 # Cấu hình
